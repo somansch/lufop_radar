@@ -1,0 +1,71 @@
+{
+    "title": "Lufop Radar",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Lufop Radar Setup",
+                "description": "Wähle den Bereich aus, der überwacht werden soll.",
+                "data": {
+                    "name": "Anzeigename",
+                    "api_key": "API-Schlüssel",
+                    "country": "Land",
+                    "location": "Bereich"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Typen",
+                        "data": {
+                            "fixed": "Fest",
+                            "mobile": "Mobil",
+                            "construction": "Baustelle",
+                            "redlight": "Rotlichtampel"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optionale Einstellungen",
+                        "data": {
+                            "count": "Anzahl der Sensoren",
+                            "selector": "Whitelist (Regex Filter der Städtenamen)",
+                            "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
+                        }
+                    }
+                }
+            }
+        },
+        "abort": {
+            "location_missing": "Bitte Position auswählen. (Karte verschieben)"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Lufop Radar Setup",
+                "description": "Wähle den Bereich aus, der überwacht werden soll.",
+                "data": {
+                    "api_key": "API-Schlüssel",
+                    "country": "Land",
+                    "location": "Bereich"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Typen",
+                        "data": {
+                            "fixed": "Fest",
+                            "mobile": "Mobil",
+                            "construction": "Baustelle",
+                            "redlight": "Rotlichtampel"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optionale Einstellungen",
+                        "data": {
+                            "count": "Anzahl der Sensoren",
+                            "selector": "Whitelist (Regex Filter der Städtenamen)",
+                            "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

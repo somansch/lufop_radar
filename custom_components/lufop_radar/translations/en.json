@@ -1,0 +1,71 @@
+{
+    "title": "Lufop Radar",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Lufop Radar Setup",
+                "description": "Select the area you want to monitor.",
+                "data": {
+                    "name": "Display name",
+                    "api_key": "API key",
+                    "country": "Country",
+                    "location": "Section"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Types",
+                        "data": {
+                            "fixed": "Fixed",
+                            "mobile": "Mobile",
+                            "construction": "Construction zone",
+                            "redlight": "Red light"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optional settings",
+                        "data": {
+                            "count": "Number of sensors",
+                            "selector": "Whitelist (regex filter of city names)",
+                            "blacklist": "Blacklist (comma-separated radar IDs)"
+                        }
+                    }
+                }
+            }
+        },
+        "abort": {
+            "location_missing": "Please select a position. (move the map)"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Lufop Radar Setup",
+                "description": "Select the area you want to monitor.",
+                "data": {
+                    "api_key": "API key",
+                    "country": "Country",
+                    "location": "Section"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Types",
+                        "data": {
+                            "fixed": "Fixed",
+                            "mobile": "Mobile",
+                            "construction": "Construction zone",
+                            "redlight": "Red light"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optional settings",
+                        "data": {
+                            "count": "Number of sensors",
+                            "selector": "Whitelist (regex filter of city names)",
+                            "blacklist": "Blacklist (comma-separated radar IDs)"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

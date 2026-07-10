@@ -1,0 +1,10 @@
+{
+  "domain": "lufop_radar",
+  "name": "Lufop Radar",
+  "codeowners": ["@somansch"],
+  "config_flow": true,
+  "documentation": "https://github.com/somansch/lufop_radar",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/somansch/lufop_radar/issues",
+  "version": "1.0.0"
+}

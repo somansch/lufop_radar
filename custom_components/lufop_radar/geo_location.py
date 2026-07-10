@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from homeassistant.components.geo_location import GeolocationEvent
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfLength
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import location as location_util
+from homeassistant.util import slugify
+
+from .const import DOMAIN
+from .coordinator import LufopCoordinator
+
+_LOGGER = logging.getLogger(__name__)
+
+_ICONS = {
+    "fixe": "mdi:cctv",
+    "mobile": "mdi:speedometer",
+    "chantier": "mdi:construction",
+    "feu": "mdi:traffic-light",
+}
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the geolocation platform."""
+    coordinator: LufopCoordinator = hass.data[DOMAIN][config_entry.entry_id].coordinator
+
+    registry = er.async_get(hass)
+    unique_prefix = f"{DOMAIN}-{coordinator.displayname}-"
+    known_entities: dict[str, LufopLocationEvent] = {}
+
+    @callback
+    def _sync_entities() -> None:
+        """Add newly reported radars and remove ones no longer in range."""
+        radars = coordinator.data.radars[: coordinator.sensorcount]
+        current_ids = {str(radar["ID"]) for radar in radars}
+        new_entities = []
+
+        for radar in radars:
+            radar_id = str(radar["ID"])
+            if radar_id in known_entities:
+                known_entities[radar_id].update_from_radar(radar)
+            else:
+                entity = LufopLocationEvent(coordinator, radar_id, radar)
+                known_entities[radar_id] = entity
+                new_entities.append(entity)
+
+        # Purge every registry entry for this area that no longer matches a
+        # currently reported radar - both entries tracked in `known_entities`
+        # this session and leftovers from a previous session. Removing the
+        # registry entry directly here (synchronously) avoids the window
+        # where a gone radar would otherwise show up as a "restored: true" /
+        # unavailable ghost until its own (task-scheduled) teardown runs.
+        for entry in list(
+            er.async_entries_for_config_entry(registry, config_entry.entry_id)
+        ):
+            if (
+                entry.domain == "geo_location"
+                and entry.unique_id.startswith(unique_prefix)
+                and entry.unique_id[len(unique_prefix):] not in current_ids
+            ):
+                known_entities.pop(entry.unique_id[len(unique_prefix):], None)
+                registry.async_remove(entry.entity_id)
+
+        if new_entities:
+            async_add_entities(new_entities)
+
+    coordinator.async_add_listener(_sync_entities)
+    _sync_entities()
+
+
+class LufopLocationEvent(GeolocationEvent):
+    """Represents a single Lufop radar as a geolocation event."""
+
+    _attr_should_poll = False
+
+    def __init__(self, coordinator: LufopCoordinator, radar_id: str, radar: dict) -> None:
+        self._coordinator = coordinator
+        self._radar_id = radar_id
+        # Per-area source (e.g. "lufop_radar_berlin") so each configured area
+        # can be selected on its own via the map card's geo_location_sources.
+        self._attr_source = f"{DOMAIN}_{slugify(coordinator.displayname)}"
+        self._attr_unique_id = f"{DOMAIN}-{coordinator.displayname}-{radar_id}"
+        self._attr_unit_of_measurement = UnitOfLength.KILOMETERS
+        self._extra_attrs: dict[str, Any] = {}
+        self._apply(radar)
+
+    def _apply(self, radar: dict) -> None:
+        name = radar.get("name") or radar.get("voie") or radar.get("commune") or "Radar"
+        self._attr_name = f"Lufop {self._coordinator.displayname} {name}"
+        self._attr_latitude = float(radar["lat"])
+        self._attr_longitude = float(radar["lng"])
+        self._attr_icon = _ICONS.get(radar.get("type"), "mdi:map-marker-alert")
+        if self.hass is not None:
+            self._attr_distance = self._distance_from_area_center(
+                self._attr_latitude, self._attr_longitude
+            )
+        self._extra_attrs = {
+            "area": self._coordinator.displayname,
+            "type": radar.get("type"),
+            "id": self._radar_id,
+            "vitesse": radar.get("vitesse"),
+            "city": radar.get("commune"),
+            "street": radar.get("voie"),
+            "country": radar.get("pays"),
+            "flash_direction": radar.get("flash"),
+            "azimut": radar.get("azimut"),
+            "updated": radar.get("update"),
+        }
+
+    def _distance_from_area_center(self, lat: float, lng: float) -> float | None:
+        """Return the distance from the configured area's center point."""
+        area = self._coordinator.location
+        meters = location_util.distance(area["latitude"], area["longitude"], lat, lng)
+        if meters is None:
+            return None
+        return self.hass.config.units.length(meters, UnitOfLength.METERS)
+
+    async def async_added_to_hass(self) -> None:
+        """Calculate distance once the entity has access to hass.config."""
+        self._attr_distance = self._distance_from_area_center(
+            self._attr_latitude, self._attr_longitude
+        )
+        self.async_write_ha_state()
+
+    @callback
+    def update_from_radar(self, radar: dict) -> None:
+        """Refresh this entity's state from newly polled data."""
+        self._apply(radar)
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Purge the registry entry so gone radars don't linger as orphans."""
+        registry = er.async_get(self.hass)
+        if self.entity_id in registry.entities:
+            registry.async_remove(self.entity_id)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self._extra_attrs
