@@ -10,6 +10,8 @@ This Home Assistant custom integration reports fixed speed cameras, mobile radar
 
 Each detected radar is exposed as a `geo_location` entity, so it shows up natively on the [map card](https://www.home-assistant.io/dashboards/map/), and a running total is exposed as a sensor.
 
+**Tested scope:** this integration has so far only been tested against Lufop's free plan, which covers **France, Belgium, and Switzerland** (see [Getting an API key](#getting-an-api-key) below). Lufop documents 20+ countries in total, but those are only confirmed reachable on a paid plan and haven't been tested here - all examples in this README use French/Belgian/Swiss cities accordingly.
+
 ## Getting an API key
 
 Lufop requires a personal API key before you can use the integration:
@@ -74,7 +76,7 @@ The config wizard is available in English, German, and French, matching whicheve
 | **Types** – Mobile | Include mobile radar checks. |
 | **Types** – Red light | Include red light cameras. |
 | **Optional settings** – Maximum number of radars | Upper limit on how many radars are tracked at once (default 9). |
-| **Optional settings** – Whitelist (comma-separated city names) | Comma-separated list of city names to keep, case-insensitive exact match (e.g. `Berlin,Potsdam`). Empty (the default) means no filtering — every city is kept. |
+| **Optional settings** – Whitelist (comma-separated city names) | Comma-separated list of city names to keep, case-insensitive exact match (e.g. `Strasbourg,Colmar`). Empty (the default) means no filtering — every city is kept. |
 | **Optional settings** – Blacklist | Comma-separated list of radar IDs to always exclude, regardless of the whitelist (e.g. `12345,67890`). The ID is the radar's `id` attribute. |
 
 #### Route (waypoints)
@@ -109,7 +111,7 @@ Attributes on each radar's `geo_location` entity:
 | Attribute | Description |
 |---|---|
 | `state` | Distance in km (or miles) to the nearest reference point — the area's center point in area mode, or the nearest of the route's waypoints in route mode. |
-| `source` | `lufop_radar_<area>`, e.g. `lufop_radar_berlin`. Lets a map card select one specific area via `geo_location_sources`. |
+| `source` | `lufop_radar_<area>`, e.g. `lufop_radar_strasbourg`. Lets a map card select one specific area via `geo_location_sources`. |
 | `area` | The display name you gave this area. |
 | `type` | One of `fixed`, `mobile`, or `redlight`. |
 | `id` | The radar's Lufop ID, also usable for the blacklist option. |

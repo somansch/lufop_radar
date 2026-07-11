@@ -2,6 +2,11 @@
 
 All notable changes to this integration are documented here.
 
+## Unreleased
+
+### Changed
+- README now states explicitly that only the free plan's country coverage (France, Belgium, Switzerland) has been tested, and all examples use French/Belgian/Swiss cities instead of German ones.
+
 ## v1.2.1
 
 First release verified against the real Lufop API with a live key. Several issues below only surfaced once real data and a real account's limits came into play.
