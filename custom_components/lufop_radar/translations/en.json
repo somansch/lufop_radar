@@ -1,15 +1,58 @@
 {
     "title": "Lufop Radar",
+    "selector": {
+        "search_mode": {
+            "options": {
+                "area": "Area (radius)",
+                "route": "Route (waypoints)"
+            }
+        },
+        "country": {
+            "options": {
+                "ad": "Andorra",
+                "au": "Australia",
+                "be": "Belgium",
+                "bg": "Bulgaria",
+                "ca": "Canada",
+                "cz": "Czechia",
+                "fi": "Finland",
+                "fr": "France",
+                "de": "Germany",
+                "ie": "Ireland",
+                "it": "Italy",
+                "lv": "Latvia",
+                "lu": "Luxembourg",
+                "ma": "Morocco",
+                "nl": "Netherlands",
+                "nz": "New Zealand",
+                "no": "Norway",
+                "pl": "Poland",
+                "pt": "Portugal",
+                "es": "Spain",
+                "se": "Sweden",
+                "ch": "Switzerland",
+                "ae": "United Arab Emirates",
+                "gb": "United Kingdom"
+            }
+        }
+    },
     "config": {
         "step": {
             "user": {
                 "title": "Lufop Radar Setup",
-                "description": "Select the area you want to monitor.",
+                "description": "Name this area and choose how it should be searched.",
                 "data": {
                     "name": "Display name",
+                    "search_mode": "Search mode"
+                }
+            },
+            "area": {
+                "title": "Lufop Radar Setup",
+                "description": "Select the section you want to monitor.",
+                "data": {
+                    "location": "Section",
                     "api_key": "API key",
-                    "country": "Country",
-                    "location": "Section"
+                    "country": "Country"
                 },
                 "sections": {
                     "type": {
@@ -17,15 +60,49 @@
                         "data": {
                             "fixed": "Fixed",
                             "mobile": "Mobile",
-                            "construction": "Construction zone",
                             "redlight": "Red light"
                         }
                     },
                     "optional": {
                         "name": "Optional settings",
                         "data": {
-                            "count": "Number of sensors",
-                            "selector": "Whitelist (regex filter of city names)",
+                            "count": "Maximum number of radars",
+                            "selector": "Whitelist (comma-separated city names)",
+                            "blacklist": "Blacklist (comma-separated radar IDs)"
+                        }
+                    }
+                }
+            },
+            "waypoint": {
+                "title": "Add waypoint {count}",
+                "description": "Move the map to place waypoint {count} of the route. Add at least two waypoints; a corridor is searched along the straight lines between them, so place a waypoint on every sharp bend of the actual route.",
+                "data": {
+                    "location": "Waypoint",
+                    "add_another": "Add another waypoint"
+                }
+            },
+            "route_options": {
+                "title": "Route search options",
+                "description": "Choose how wide a corridor around the route to search, and which radars to include.",
+                "data": {
+                    "corridor_width": "Corridor width (meters)",
+                    "api_key": "API key",
+                    "country": "Country"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Types",
+                        "data": {
+                            "fixed": "Fixed",
+                            "mobile": "Mobile",
+                            "redlight": "Red light"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optional settings",
+                        "data": {
+                            "count": "Maximum number of radars",
+                            "selector": "Whitelist (comma-separated city names)",
                             "blacklist": "Blacklist (comma-separated radar IDs)"
                         }
                     }
@@ -34,17 +111,27 @@
         },
         "abort": {
             "location_missing": "Please select a position. (move the map)"
+        },
+        "error": {
+            "route_needs_two_waypoints": "A route needs at least two waypoints."
         }
     },
     "options": {
         "step": {
             "init": {
+                "title": "What do you want to edit?",
+                "menu_options": {
+                    "edit_waypoints": "Edit waypoints",
+                    "edit_settings": "Edit search settings (corridor width, API key, country, types, filters)"
+                }
+            },
+            "area": {
                 "title": "Lufop Radar Setup",
-                "description": "Select the area you want to monitor.",
+                "description": "Select the section you want to monitor.",
                 "data": {
+                    "location": "Section",
                     "api_key": "API key",
-                    "country": "Country",
-                    "location": "Section"
+                    "country": "Country"
                 },
                 "sections": {
                     "type": {
@@ -52,20 +139,65 @@
                         "data": {
                             "fixed": "Fixed",
                             "mobile": "Mobile",
-                            "construction": "Construction zone",
                             "redlight": "Red light"
                         }
                     },
                     "optional": {
                         "name": "Optional settings",
                         "data": {
-                            "count": "Number of sensors",
-                            "selector": "Whitelist (regex filter of city names)",
+                            "count": "Maximum number of radars",
+                            "selector": "Whitelist (comma-separated city names)",
+                            "blacklist": "Blacklist (comma-separated radar IDs)"
+                        }
+                    }
+                }
+            },
+            "waypoint_review": {
+                "title": "Review waypoint {index} of {total}",
+                "description": "This is an existing waypoint of your route. Move the map to reposition it, or enable 'Remove this waypoint' to drop it from the route. This automatically continues to the next waypoint.",
+                "data": {
+                    "location": "Waypoint",
+                    "remove": "Remove this waypoint"
+                }
+            },
+            "waypoint": {
+                "title": "Append new waypoint {count}",
+                "description": "Every existing waypoint has been reviewed. Move the map to append another waypoint to the end of the route, or disable 'Add another waypoint' to save the route as-is. A corridor is searched along the straight lines between waypoints, not the actual road, so place a waypoint on every sharp bend of the actual route.",
+                "data": {
+                    "location": "Waypoint",
+                    "add_another": "Add another waypoint"
+                }
+            },
+            "route_options": {
+                "title": "Route search options",
+                "description": "Choose how wide a corridor around the route to search, and which radars to include.",
+                "data": {
+                    "corridor_width": "Corridor width (meters)",
+                    "api_key": "API key",
+                    "country": "Country"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Types",
+                        "data": {
+                            "fixed": "Fixed",
+                            "mobile": "Mobile",
+                            "redlight": "Red light"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optional settings",
+                        "data": {
+                            "count": "Maximum number of radars",
+                            "selector": "Whitelist (comma-separated city names)",
                             "blacklist": "Blacklist (comma-separated radar IDs)"
                         }
                     }
                 }
             }
+        },
+        "error": {
+            "route_needs_two_waypoints": "A route needs at least two waypoints."
         }
     }
 }

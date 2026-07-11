@@ -6,5 +6,5 @@
   "documentation": "https://github.com/somansch/lufop_radar",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/somansch/lufop_radar/issues",
-  "version": "1.0.0"
+  "version": "1.2.1"
 }

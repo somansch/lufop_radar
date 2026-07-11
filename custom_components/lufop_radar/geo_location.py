@@ -12,16 +12,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import location as location_util
 from homeassistant.util import slugify
 
-from .const import DOMAIN
+from .api import classify_type
+from .const import DOMAIN, SEARCH_MODE_ROUTE
 from .coordinator import LufopCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 _ICONS = {
-    "fixe": "mdi:cctv",
+    "fixed": "mdi:cctv",
     "mobile": "mdi:speedometer",
-    "chantier": "mdi:construction",
-    "feu": "mdi:traffic-light",
+    "redlight": "mdi:traffic-light",
 }
 
 
@@ -98,31 +98,43 @@ class LufopLocationEvent(GeolocationEvent):
         self._attr_name = f"Lufop {self._coordinator.displayname} {name}"
         self._attr_latitude = float(radar["lat"])
         self._attr_longitude = float(radar["lng"])
-        self._attr_icon = _ICONS.get(radar.get("type"), "mdi:map-marker-alert")
+        radar_type = classify_type(radar)
+        self._attr_icon = _ICONS.get(radar_type, "mdi:map-marker-alert")
         if self.hass is not None:
             self._attr_distance = self._distance_from_area_center(
                 self._attr_latitude, self._attr_longitude
             )
         self._extra_attrs = {
             "area": self._coordinator.displayname,
-            "type": radar.get("type"),
+            "type": radar_type,
             "id": self._radar_id,
-            "vitesse": radar.get("vitesse"),
+            "speed": radar.get("vitesse"),
             "city": radar.get("commune"),
             "street": radar.get("voie"),
             "country": radar.get("pays"),
             "flash_direction": radar.get("flash"),
-            "azimut": radar.get("azimut"),
+            "azimuth": radar.get("azimut"),
             "updated": radar.get("update"),
         }
 
     def _distance_from_area_center(self, lat: float, lng: float) -> float | None:
-        """Return the distance from the configured area's center point."""
-        area = self._coordinator.location
-        meters = location_util.distance(area["latitude"], area["longitude"], lat, lng)
-        if meters is None:
+        """Return the distance to the nearest configured reference point:
+        the area's center point in area mode, or the closest route waypoint
+        in route mode.
+        """
+        if self._coordinator.search_mode == SEARCH_MODE_ROUTE:
+            reference_points = self._coordinator.waypoints
+        else:
+            reference_points = [self._coordinator.location]
+
+        distances = [
+            meters
+            for point in reference_points
+            if (meters := location_util.distance(point["latitude"], point["longitude"], lat, lng)) is not None
+        ]
+        if not distances:
             return None
-        return self.hass.config.units.length(meters, UnitOfLength.METERS)
+        return self.hass.config.units.length(min(distances), UnitOfLength.METERS)
 
     async def async_added_to_hass(self) -> None:
         """Calculate distance once the entity has access to hass.config."""

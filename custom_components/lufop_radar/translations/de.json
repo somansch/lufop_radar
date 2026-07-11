@@ -1,15 +1,58 @@
 {
     "title": "Lufop Radar",
+    "selector": {
+        "search_mode": {
+            "options": {
+                "area": "Bereich (Radius)",
+                "route": "Route (Wegpunkte)"
+            }
+        },
+        "country": {
+            "options": {
+                "ad": "Andorra",
+                "au": "Australien",
+                "be": "Belgien",
+                "bg": "Bulgarien",
+                "ca": "Kanada",
+                "cz": "Tschechien",
+                "fi": "Finnland",
+                "fr": "Frankreich",
+                "de": "Deutschland",
+                "ie": "Irland",
+                "it": "Italien",
+                "lv": "Lettland",
+                "lu": "Luxemburg",
+                "ma": "Marokko",
+                "nl": "Niederlande",
+                "nz": "Neuseeland",
+                "no": "Norwegen",
+                "pl": "Polen",
+                "pt": "Portugal",
+                "es": "Spanien",
+                "se": "Schweden",
+                "ch": "Schweiz",
+                "ae": "Vereinigte Arabische Emirate",
+                "gb": "Vereinigtes Königreich"
+            }
+        }
+    },
     "config": {
         "step": {
             "user": {
                 "title": "Lufop Radar Setup",
-                "description": "Wähle den Bereich aus, der überwacht werden soll.",
+                "description": "Benenne diesen Bereich und wähle, wie er durchsucht werden soll.",
                 "data": {
                     "name": "Anzeigename",
+                    "search_mode": "Suchmodus"
+                }
+            },
+            "area": {
+                "title": "Lufop Radar Setup",
+                "description": "Wähle den Bereich, der überwacht werden soll.",
+                "data": {
+                    "location": "Bereich",
                     "api_key": "API-Schlüssel",
-                    "country": "Land",
-                    "location": "Bereich"
+                    "country": "Land"
                 },
                 "sections": {
                     "type": {
@@ -17,15 +60,49 @@
                         "data": {
                             "fixed": "Fest",
                             "mobile": "Mobil",
-                            "construction": "Baustelle",
                             "redlight": "Rotlichtampel"
                         }
                     },
                     "optional": {
                         "name": "Optionale Einstellungen",
                         "data": {
-                            "count": "Anzahl der Sensoren",
-                            "selector": "Whitelist (Regex Filter der Städtenamen)",
+                            "count": "Maximale Anzahl der Blitzer",
+                            "selector": "Whitelist (kommagetrennte Städtenamen)",
+                            "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
+                        }
+                    }
+                }
+            },
+            "waypoint": {
+                "title": "Wegpunkt {count} hinzufügen",
+                "description": "Verschiebe die Karte, um Wegpunkt {count} der Route zu platzieren. Füge mindestens zwei Wegpunkte hinzu; ein Korridor entlang der geraden Linien dazwischen wird durchsucht — setze deshalb an jeder scharfen Kurve der tatsächlichen Route einen Wegpunkt.",
+                "data": {
+                    "location": "Wegpunkt",
+                    "add_another": "Weiteren Wegpunkt hinzufügen"
+                }
+            },
+            "route_options": {
+                "title": "Routen-Sucheinstellungen",
+                "description": "Wähle, wie breit der Korridor entlang der Route durchsucht werden soll, und welche Radare berücksichtigt werden.",
+                "data": {
+                    "corridor_width": "Korridorbreite (Meter)",
+                    "api_key": "API-Schlüssel",
+                    "country": "Land"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Typen",
+                        "data": {
+                            "fixed": "Fest",
+                            "mobile": "Mobil",
+                            "redlight": "Rotlichtampel"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optionale Einstellungen",
+                        "data": {
+                            "count": "Maximale Anzahl der Blitzer",
+                            "selector": "Whitelist (kommagetrennte Städtenamen)",
                             "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
                         }
                     }
@@ -34,17 +111,27 @@
         },
         "abort": {
             "location_missing": "Bitte Position auswählen. (Karte verschieben)"
+        },
+        "error": {
+            "route_needs_two_waypoints": "Eine Route benötigt mindestens zwei Wegpunkte."
         }
     },
     "options": {
         "step": {
             "init": {
+                "title": "Was möchtest du bearbeiten?",
+                "menu_options": {
+                    "edit_waypoints": "Wegpunkte bearbeiten",
+                    "edit_settings": "Sucheinstellungen bearbeiten (Korridorbreite, API-Schlüssel, Land, Typen, Filter)"
+                }
+            },
+            "area": {
                 "title": "Lufop Radar Setup",
-                "description": "Wähle den Bereich aus, der überwacht werden soll.",
+                "description": "Wähle den Bereich, der überwacht werden soll.",
                 "data": {
+                    "location": "Bereich",
                     "api_key": "API-Schlüssel",
-                    "country": "Land",
-                    "location": "Bereich"
+                    "country": "Land"
                 },
                 "sections": {
                     "type": {
@@ -52,20 +139,65 @@
                         "data": {
                             "fixed": "Fest",
                             "mobile": "Mobil",
-                            "construction": "Baustelle",
                             "redlight": "Rotlichtampel"
                         }
                     },
                     "optional": {
                         "name": "Optionale Einstellungen",
                         "data": {
-                            "count": "Anzahl der Sensoren",
-                            "selector": "Whitelist (Regex Filter der Städtenamen)",
+                            "count": "Maximale Anzahl der Blitzer",
+                            "selector": "Whitelist (kommagetrennte Städtenamen)",
+                            "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
+                        }
+                    }
+                }
+            },
+            "waypoint_review": {
+                "title": "Wegpunkt {index} von {total} überprüfen",
+                "description": "Dies ist ein bereits gespeicherter Wegpunkt deiner Route. Verschiebe die Karte, um ihn neu zu positionieren, oder aktiviere 'Diesen Wegpunkt entfernen', um ihn aus der Route zu löschen. Es geht danach automatisch zum nächsten Wegpunkt weiter.",
+                "data": {
+                    "location": "Wegpunkt",
+                    "remove": "Diesen Wegpunkt entfernen"
+                }
+            },
+            "waypoint": {
+                "title": "Neuen Wegpunkt {count} anhängen",
+                "description": "Alle bestehenden Wegpunkte wurden überprüft. Verschiebe die Karte, um einen weiteren Wegpunkt ans Ende der Route anzuhängen, oder deaktiviere 'Weiteren Wegpunkt hinzufügen', um die Route so zu speichern. Ein Korridor entlang der geraden Linien zwischen den Wegpunkten wird durchsucht, nicht die tatsächliche Straße — setze deshalb an jeder scharfen Kurve der tatsächlichen Route einen Wegpunkt.",
+                "data": {
+                    "location": "Wegpunkt",
+                    "add_another": "Weiteren Wegpunkt hinzufügen"
+                }
+            },
+            "route_options": {
+                "title": "Routen-Sucheinstellungen",
+                "description": "Wähle, wie breit der Korridor entlang der Route durchsucht werden soll, und welche Radare berücksichtigt werden.",
+                "data": {
+                    "corridor_width": "Korridorbreite (Meter)",
+                    "api_key": "API-Schlüssel",
+                    "country": "Land"
+                },
+                "sections": {
+                    "type": {
+                        "name": "Typen",
+                        "data": {
+                            "fixed": "Fest",
+                            "mobile": "Mobil",
+                            "redlight": "Rotlichtampel"
+                        }
+                    },
+                    "optional": {
+                        "name": "Optionale Einstellungen",
+                        "data": {
+                            "count": "Maximale Anzahl der Blitzer",
+                            "selector": "Whitelist (kommagetrennte Städtenamen)",
                             "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
                         }
                     }
                 }
             }
+        },
+        "error": {
+            "route_needs_two_waypoints": "Eine Route benötigt mindestens zwei Wegpunkte."
         }
     }
 }
