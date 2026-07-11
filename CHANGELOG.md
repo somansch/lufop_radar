@@ -2,10 +2,24 @@
 
 All notable changes to this integration are documented here.
 
-## Unreleased
+## v1.2.2
+
+Second round of live-testing fixes, plus entity display and dashboard polish, from configuring real areas in Strasbourg and Paris.
+
+### Added
+- README now includes a "Dashboard Examples" section with screenshots and the actual map/markdown card configuration used for them, matching the sibling `blitzer` integration's README structure.
 
 ### Changed
 - README now states explicitly that only the free plan's country coverage (France, Belgium, Switzerland) has been tested, and all examples use French/Belgian/Swiss cities instead of German ones.
+- Entity friendly names now use the radar's city and street (e.g. "Lufop Paris Strasbourg, M 35") instead of Lufop's raw radar name.
+- Every radar now gets a generated round road-sign picture as its `entity_picture` - the speed limit for speed cameras, a traffic-light emoji for red-light cameras - which both the entity itself and the map card's marker render. The map card previously showed no usable icon at all for MDI icons on geo_location markers, falling back to text initials of the entity name.
+- The `flash_direction` attribute now reports readable `front`/`back`/`both` instead of Lufop's raw `F`/`B`/`D` codes (per Lufop's docs: F = Front, B = Back, D = Double sens/both).
+
+### Removed
+- "Covoiturage" (carpool/HOV-lane) cameras with no speed limit are now dropped entirely instead of showing up as unlabelled fixed cameras. These check lane occupancy, not speed, and always report an empty "vitesse" by design (confirmed against a live example on Lufop's own site) - not useful for a speed-camera integration.
+
+### Fixed
+- "Chantier" radars (mobile radar units deployed in roadwork zones - Lufop's own term, not the roadwork itself) were being misclassified as fixed cameras. Some countries, notably France, have no separate "Mobile" listing at all and report these mobile deployments only as "Chantier", so this was silently miscategorizing (and, before that, dropping entirely) real mobile-radar data. "Chantier" now counts as "mobile", alongside countries that do report literal "Mobile" entries (e.g. Belgium, Switzerland).
 
 ## v1.2.1
 

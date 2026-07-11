@@ -12,6 +12,70 @@ Each detected radar is exposed as a `geo_location` entity, so it shows up native
 
 **Tested scope:** this integration has so far only been tested against Lufop's free plan, which covers **France, Belgium, and Switzerland** (see [Getting an API key](#getting-an-api-key) below). Lufop documents 20+ countries in total, but those are only confirmed reachable on a paid plan and haven't been tested here - all examples in this README use French/Belgian/Swiss cities accordingly.
 
+## Dashboard Examples
+
+### Map card
+
+<img src="docs/map-card-example.png" alt="Map card showing Lufop speed-limit-sign markers around Paris" width="500">
+
+Each detected radar's `entity_picture` is a generated speed-limit-sign image (or a traffic-light sign for red-light cameras), so it renders directly as the map marker instead of a generic dot. Each configured area/route gets its own `source`, named `lufop_radar_<area>` (e.g. `lufop_radar_paris`), so you can show just one area on a map card instead of all of them combined:
+
+```yaml
+type: map
+geo_location_sources:
+  - lufop_radar_paris
+```
+
+Use `geo_location_sources: [all]` (or list every `lufop_radar_<area>` source) to show all configured areas on the same map.
+
+### Markdown card
+
+<img src="docs/markdown-card-example.png" alt="Markdown card listing Paris-area radars sorted by distance" width="500">
+
+The list is sorted by distance to the area's center point, closest first, each entry linking to its Lufop detail page:
+
+```jinja2
+<h1></h1>
+{%- set areas = ["Paris"] -%}
+{%- set ns = namespace(has_data=false) -%}
+{%- for area in areas -%}
+{%- set matches = namespace(items=[]) -%}
+{%- for s in states.geo_location -%}
+{%- if (state_attr(s.entity_id, 'source') or '').startswith('lufop_radar_') and state_attr(s.entity_id, 'area') == area -%}
+{%- set matches.items = matches.items + [{'id': s.entity_id, 'dist': states(s.entity_id) | float(9999)}] -%}
+{%- endif -%}
+{%- endfor -%}
+{%- set sorted_items = matches.items | sort(attribute='dist') -%}
+{%- if sorted_items | count > 0 -%}
+{%- set ns.has_data = true -%}
+<b>{{ area }} ({{ sorted_items | count }})</b><br>
+{%- for m in sorted_items -%}
+{%- set e = m.id -%}
+{%- set etype = state_attr(e, 'type') -%}
+<img src="{{ state_attr(e, 'entity_picture') }}" width="20">
+<a href="https://lufop.net/detail/{{ state_attr(e, 'id') }}/">{{ state_attr(e, 'city') }}, {{ state_attr(e, 'street') }}</a>
+{%- if etype == 'redlight' -%}
+&nbsp;Red light camera ({{ states(e) }} km)
+{%- else -%}
+&nbsp;at {{ state_attr(e, 'speed') }} km/h ({{ states(e) }} km)
+{%- endif -%}
+{%- if etype == 'fixed' -%}
+&nbsp;<i>(fixed)</i>
+{%- elif etype == 'mobile' -%}
+&nbsp;<i>(mobile)</i>
+{%- endif -%}
+<br>
+{%- endfor -%}
+{%- endif -%}
+{%- endfor -%}
+
+{%- if not ns.has_data -%}
+<div style="text-align:center; opacity:0.7;">
+  No speed cameras right now 🚗💨
+</div>
+{%- endif -%}
+```
+
 ## Getting an API key
 
 Lufop requires a personal API key before you can use the integration:
@@ -73,7 +137,7 @@ The config wizard is available in English, German, and French, matching whicheve
 | **API key** | Your personal Lufop API key (see [Getting an API key](#getting-an-api-key)). |
 | **Country** | The country to query, shown by name and sorted alphabetically (Lufop scopes each request to a single country on the free plan). |
 | **Types** – Fixed | Include permanently installed fixed speed cameras. |
-| **Types** – Mobile | Include mobile radar checks. |
+| **Types** – Mobile | Include mobile radar checks. In countries without a separate "mobile" listing (e.g. France), this also includes Lufop's "Chantier" entries - mobile radar units deployed in roadwork zones, not the roadwork itself. |
 | **Types** – Red light | Include red light cameras. |
 | **Optional settings** – Maximum number of radars | Upper limit on how many radars are tracked at once (default 9). |
 | **Optional settings** – Whitelist (comma-separated city names) | Comma-separated list of city names to keep, case-insensitive exact match (e.g. `Strasbourg,Colmar`). Empty (the default) means no filtering — every city is kept. |
@@ -118,7 +182,7 @@ Attributes on each radar's `geo_location` entity:
 | `speed` | Speed limit at this location. |
 | `city`, `street` | Address of the radar (`commune`/`voie` in Lufop's data). |
 | `country` | Country code as reported by Lufop. |
-| `flash_direction` | Flash direction (`F`/`B`/`D`). |
+| `flash_direction` | Flash direction: `front`, `back`, or `both`. |
 | `azimuth` | Compass bearing (0-360). |
 | `updated` | Last update timestamp from Lufop. |
 

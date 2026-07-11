@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import location as location_util
 
-from .api import LufopAPI, LufopAPIError, classify_type
+from .api import LufopAPI, LufopAPIError, classify_type, is_speedless_carpool_lane
 from .const import (
     CONF_BLACKLIST,
     CONF_CORRIDOR_WIDTH,
@@ -119,6 +119,7 @@ class LufopCoordinator(DataUpdateCoordinator):
             if enabled
         }
         radars = [r for r in radars if classify_type(r) in wanted_types]
+        radars = [r for r in radars if not is_speedless_carpool_lane(r)]
 
         if self.whitelist:
             radars = [

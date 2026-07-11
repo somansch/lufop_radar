@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import quote
 
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.config_entries import ConfigEntry
@@ -23,6 +24,32 @@ _ICONS = {
     "mobile": "mdi:speedometer",
     "redlight": "mdi:traffic-light",
 }
+
+# Per Lufop's own API docs: F = Front, B = Back, D = Double sens (both).
+_FLASH_DIRECTIONS = {
+    "F": "front",
+    "B": "back",
+    "D": "both",
+}
+
+
+def _sign_picture(content: str, font_size: int = 40) -> str:
+    """Build a data-URI SVG of a round EU-style sign (white disc, red ring)
+    with the given text/emoji centered - the speed limit for speed cameras,
+    a traffic-light emoji for red-light cameras. Used as entity_picture,
+    which both the entity's own icon and the map card's marker render, so
+    every radar type gets a consistent, actually-visible marker instead of
+    relying on MDI icons - the map card was found to not render those at
+    all, falling back to text initials of the entity name instead.
+    """
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<circle cx="50" cy="50" r="46" fill="white" stroke="#e30613" stroke-width="9"/>'
+        f'<text x="50" y="54" font-family="Arial,Helvetica,sans-serif" font-weight="bold" '
+        f'font-size="{font_size}" fill="black" text-anchor="middle" dominant-baseline="middle">{content}</text>'
+        "</svg>"
+    )
+    return "data:image/svg+xml," + quote(svg)
 
 
 async def async_setup_entry(
@@ -94,12 +121,20 @@ class LufopLocationEvent(GeolocationEvent):
         self._apply(radar)
 
     def _apply(self, radar: dict) -> None:
-        name = radar.get("name") or radar.get("voie") or radar.get("commune") or "Radar"
-        self._attr_name = f"Lufop {self._coordinator.displayname} {name}"
+        city = radar.get("commune") or ""
+        street = radar.get("voie") or ""
+        location_label = ", ".join(part for part in (city, street) if part) or "Radar"
+        self._attr_name = f"Lufop {self._coordinator.displayname} {location_label}"
         self._attr_latitude = float(radar["lat"])
         self._attr_longitude = float(radar["lng"])
         radar_type = classify_type(radar)
         self._attr_icon = _ICONS.get(radar_type, "mdi:map-marker-alert")
+        if radar_type == "redlight":
+            self._attr_entity_picture = _sign_picture("\U0001F6A6", font_size=60)  # 🚦, 50% larger than the speed digits
+        elif radar.get("vitesse"):
+            self._attr_entity_picture = _sign_picture(radar["vitesse"])
+        else:
+            self._attr_entity_picture = None
         if self.hass is not None:
             self._attr_distance = self._distance_from_area_center(
                 self._attr_latitude, self._attr_longitude
@@ -112,7 +147,7 @@ class LufopLocationEvent(GeolocationEvent):
             "city": radar.get("commune"),
             "street": radar.get("voie"),
             "country": radar.get("pays"),
-            "flash_direction": radar.get("flash"),
+            "flash_direction": _FLASH_DIRECTIONS.get(radar.get("flash"), radar.get("flash")),
             "azimuth": radar.get("azimut"),
             "updated": radar.get("update"),
         }

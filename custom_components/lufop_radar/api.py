@@ -26,19 +26,39 @@ class LufopAPIError(Exception):
 def classify_type(radar: dict) -> str:
     """Return one of "fixed"/"mobile"/"redlight" for a raw radar record.
 
-    Lufop's own "type" field is an internal numeric radar-model ID (e.g. "18",
-    "40", "148") with no published mapping to a fixed/mobile/red-light
-    category - different numeric IDs can all be plain fixed cameras. The
-    "name" field is the only reliably present signal, and consistently
-    contains a French keyword ("Radar Fixe ...", "Radar Feu Rouge ...",
-    "Radar Mobile ...").
+    Lufop's read API returns "type" as an internal numeric radar-model ID
+    (e.g. "18", "40", "154") with no published mapping to a fixed/mobile/
+    red-light category - different numeric IDs can all be plain fixed
+    cameras. (Lufop's docs *do* define a "fixe"/"mobile"/"chantier"/"feu"
+    string enum, but only for the write API used to submit new radars - it
+    doesn't appear in read responses.) The "name" field is the only
+    reliably present signal on read, and consistently contains a French
+    keyword ("Radar Fixe ...", "Radar Feu Rouge ...", "Radar Mobile ...").
+
+    "Chantier" ("Radar Chantier FR", "Radar de Chantier FR") is Lufop's own
+    label for mobile radar units deployed in roadwork zones - it's the only
+    non-fixed, non-red-light category some countries (e.g. France) report,
+    since they have no separate "Radar Mobile" entries at all. Grouped under
+    "mobile" here rather than exposed as its own type.
     """
     name = (radar.get("name") or "").lower()
     if "feu" in name:
         return "redlight"
-    if "mobile" in name:
+    if "mobile" in name or "chantier" in name:
         return "mobile"
     return "fixed"
+
+
+def is_speedless_carpool_lane(radar: dict) -> bool:
+    """True for "Covoiturage" (carpool/HOV-lane) cameras with no "vitesse".
+
+    These check lane occupancy, not speed - Lufop's own detail page for such
+    a radar shows "Vitesse: -" (confirmed against a live example), it isn't
+    a data gap. Not useful for a speed-camera integration, so these are
+    dropped unconditionally rather than shown as an unlabelled "fixed" radar.
+    """
+    name = (radar.get("name") or "").lower()
+    return "covoiturage" in name and not radar.get("vitesse")
 
 
 class LufopAPI:
