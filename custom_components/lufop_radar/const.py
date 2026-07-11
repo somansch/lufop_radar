@@ -47,3 +47,24 @@ SEARCH_MODE_ROUTE = "route"
 CONF_WAYPOINTS = "waypoints"
 CONF_CORRIDOR_WIDTH = "corridor_width"
 DEFAULT_CORRIDOR_WIDTH = 300
+
+# How often this entry polls Lufop, in minutes. User-configurable per entry -
+# 0 means "never automatically", relying entirely on the "refresh" service
+# instead (e.g. triggered from an automation). The suggested defaults below
+# are a starting point, not a hard quota-safe limit - anyone running several
+# areas/routes on the same key (or wanting more headroom under the free
+# plan's 200 requests/day) needs to raise this themselves; see the README's
+# rate-limit section.
+CONF_UPDATE_INTERVAL = "update_interval"
+DEFAULT_AREA_UPDATE_INTERVAL = 10
+# Multiplied by the route's *sample*-point count (see route.py), not its raw
+# waypoint count - a poll queries once per sample point, and how many of
+# those a given set of waypoints produces depends on the corridor width too
+# (e.g. two waypoints 2km apart with a 300m corridor already interpolates
+# to 7 sample points: int(2000 // 300) + 1), so the request volume - and
+# thus the quota-safe default - isn't just "one request per waypoint".
+DEFAULT_MINUTES_PER_ROUTE_REQUEST = 8
+UPDATE_INTERVAL_MANUAL = 0
+
+SERVICE_REFRESH = "refresh"
+ATTR_CONFIG_ENTRY_ID = "config_entry_id"

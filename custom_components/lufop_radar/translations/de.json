@@ -67,6 +67,7 @@
                         "name": "Optionale Einstellungen",
                         "data": {
                             "count": "Maximale Anzahl der Blitzer",
+                            "update_interval": "Aktualisierungsintervall (Minuten, 0 = nur manuell)",
                             "selector": "Whitelist (kommagetrennte Städtenamen)",
                             "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
                         }
@@ -81,13 +82,20 @@
                     "add_another": "Weiteren Wegpunkt hinzufügen"
                 }
             },
+            "route_corridor": {
+                "title": "Routen-Sucheinstellungen",
+                "description": "Wähle, wie breit der Korridor entlang der Route durchsucht werden soll.",
+                "data": {
+                    "corridor_width": "Korridorbreite (Meter)"
+                }
+            },
             "route_options": {
                 "title": "Routen-Sucheinstellungen",
-                "description": "Wähle, wie breit der Korridor entlang der Route durchsucht werden soll, und welche Radare berücksichtigt werden.",
+                "description": "Wähle, welche Radare berücksichtigt werden.\n\nBei einer Korridorbreite von {corridor_width} m ergeben sich für diese Route {sample_count} Sample-Punkte - eine Lufop-Anfrage pro Punkt bei jedem Abruf. Vorgeschlagenes Aktualisierungsintervall unten: {suggested_interval} Minuten. Aktiviere \"Korridorbreite anpassen\", um zurückzugehen, statt zu speichern.",
                 "data": {
-                    "corridor_width": "Korridorbreite (Meter)",
                     "api_key": "API-Schlüssel",
-                    "country": "Land"
+                    "country": "Land",
+                    "adjust_corridor": "Korridorbreite anpassen statt speichern"
                 },
                 "sections": {
                     "type": {
@@ -102,6 +110,7 @@
                         "name": "Optionale Einstellungen",
                         "data": {
                             "count": "Maximale Anzahl der Blitzer",
+                            "update_interval": "Aktualisierungsintervall (Minuten, 0 = nur manuell)",
                             "selector": "Whitelist (kommagetrennte Städtenamen)",
                             "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
                         }
@@ -146,6 +155,7 @@
                         "name": "Optionale Einstellungen",
                         "data": {
                             "count": "Maximale Anzahl der Blitzer",
+                            "update_interval": "Aktualisierungsintervall (Minuten, 0 = nur manuell)",
                             "selector": "Whitelist (kommagetrennte Städtenamen)",
                             "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
                         }
@@ -168,13 +178,20 @@
                     "add_another": "Weiteren Wegpunkt hinzufügen"
                 }
             },
+            "route_corridor": {
+                "title": "Routen-Sucheinstellungen",
+                "description": "Wähle, wie breit der Korridor entlang der Route durchsucht werden soll.",
+                "data": {
+                    "corridor_width": "Korridorbreite (Meter)"
+                }
+            },
             "route_options": {
                 "title": "Routen-Sucheinstellungen",
-                "description": "Wähle, wie breit der Korridor entlang der Route durchsucht werden soll, und welche Radare berücksichtigt werden.",
+                "description": "Wähle, welche Radare berücksichtigt werden.\n\nBei einer Korridorbreite von {corridor_width} m ergeben sich für diese Route {sample_count} Sample-Punkte - eine Lufop-Anfrage pro Punkt bei jedem Abruf. Vorgeschlagenes Aktualisierungsintervall unten: {suggested_interval} Minuten. Aktiviere \"Korridorbreite anpassen\", um zurückzugehen, statt zu speichern.",
                 "data": {
-                    "corridor_width": "Korridorbreite (Meter)",
                     "api_key": "API-Schlüssel",
-                    "country": "Land"
+                    "country": "Land",
+                    "adjust_corridor": "Korridorbreite anpassen statt speichern"
                 },
                 "sections": {
                     "type": {
@@ -189,6 +206,7 @@
                         "name": "Optionale Einstellungen",
                         "data": {
                             "count": "Maximale Anzahl der Blitzer",
+                            "update_interval": "Aktualisierungsintervall (Minuten, 0 = nur manuell)",
                             "selector": "Whitelist (kommagetrennte Städtenamen)",
                             "blacklist": "Blacklist (kommagetrennte Radar-IDs)"
                         }
@@ -198,6 +216,18 @@
         },
         "error": {
             "route_needs_two_waypoints": "Eine Route benötigt mindestens zwei Wegpunkte."
+        }
+    },
+    "services": {
+        "refresh": {
+            "name": "Lufop aktualisieren",
+            "description": "Ruft sofort die aktuellen Blitzer für eine Lufop-Radar-Area oder -Route ab, statt auf den nächsten geplanten Abruf zu warten. Gibt die gefundenen Blitzer zurück.",
+            "fields": {
+                "config_entry_id": {
+                    "name": "Bereich oder Route",
+                    "description": "Welche Lufop-Radar-Area oder -Route aktualisiert werden soll."
+                }
+            }
         }
     }
 }

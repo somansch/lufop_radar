@@ -29,7 +29,7 @@ class LufopTotalSensor(CoordinatorEntity):
 
     def __init__(self, coordinator: LufopCoordinator) -> None:
         super().__init__(coordinator)
-        self.name = f"Lufop {self.coordinator.displayname} Anzahl"
+        self.name = f"Lufop {self.coordinator.displayname} Total"
         self.unique_id = f"{DOMAIN}-{self.coordinator.displayname}-total"
 
     @callback

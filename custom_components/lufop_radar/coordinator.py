@@ -13,7 +13,6 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util import location as location_util
 
 from .api import LufopAPI, LufopAPIError, classify_type, is_speedless_carpool_lane
 from .const import (
@@ -21,22 +20,16 @@ from .const import (
     CONF_CORRIDOR_WIDTH,
     CONF_COUNTRY,
     CONF_SEARCH_MODE,
+    CONF_UPDATE_INTERVAL,
     CONF_WAYPOINTS,
     DOMAIN,
     SEARCH_MODE_AREA,
     SEARCH_MODE_ROUTE,
+    UPDATE_INTERVAL_MANUAL,
 )
+from .route import route_sample_points
 
 _LOGGER = logging.getLogger(__name__)
-
-# Free-plan budget is 200 requests/day. Area mode makes 1 request per poll;
-# route mode makes one per sample point. Spacing polls MIN_MINUTES_PER_REQUEST
-# apart per request keeps (requests per poll) * (polls per day) around
-# 144/day for a single entry - a ~28% safety margin under the daily cap for
-# occasional manual refreshes or config-flow saves. Multiple areas/routes on
-# the same API key all draw from the same daily budget, so that margin
-# shrinks per extra entry.
-MIN_MINUTES_PER_REQUEST = 10
 
 
 @dataclass
@@ -80,7 +73,18 @@ class LufopCoordinator(DataUpdateCoordinator):
         calls_per_poll = (
             len(self._route_sample_points()) if self.search_mode == SEARCH_MODE_ROUTE else 1
         )
-        update_interval = timedelta(minutes=MIN_MINUTES_PER_REQUEST * calls_per_poll)
+        # .get() with a fallback: entries saved before this became
+        # user-configurable keep their previous (quota-safe) polling
+        # behaviour until the user next opens Configure and saves, rather
+        # than silently jumping to the new, more aggressive suggested
+        # default without their say-so.
+        interval_minutes = config_entry.data.get(CONF_UPDATE_INTERVAL)
+        if interval_minutes is None:
+            interval_minutes = 10 * calls_per_poll
+        update_interval = (
+            None if interval_minutes == UPDATE_INTERVAL_MANUAL
+            else timedelta(minutes=interval_minutes)
+        )
 
         super().__init__(
             hass,
@@ -133,25 +137,7 @@ class LufopCoordinator(DataUpdateCoordinator):
         return LufopData(radars=radars)
 
     def _route_sample_points(self):
-        """Interpolate points along the waypoint chain, spaced corridor_width
-        apart, so the circular per-point queries below overlap and leave no
-        gaps - a "poor man's route search" without a real routing engine.
-        Straight lines between waypoints, not actual roads, so a route with
-        sharp bends needs waypoints placed on those bends to stay accurate.
-        """
-        points = [(self.waypoints[0]["latitude"], self.waypoints[0]["longitude"])]
-        for start, end in zip(self.waypoints, self.waypoints[1:]):
-            segment_length = location_util.distance(
-                start["latitude"], start["longitude"], end["latitude"], end["longitude"]
-            )
-            steps = max(1, int(segment_length // self.corridor_width)) if segment_length else 1
-            for step in range(1, steps + 1):
-                fraction = step / steps
-                points.append((
-                    start["latitude"] + (end["latitude"] - start["latitude"]) * fraction,
-                    start["longitude"] + (end["longitude"] - start["longitude"]) * fraction,
-                ))
-        return points
+        return route_sample_points(self.waypoints, self.corridor_width)
 
     async def _get_route_radars(self) -> list[dict]:
         """Query a circle of radius corridor_width around every sample point

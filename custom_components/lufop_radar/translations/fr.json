@@ -67,6 +67,7 @@
                         "name": "Paramètres optionnels",
                         "data": {
                             "count": "Nombre maximum de radars",
+                            "update_interval": "Intervalle de mise à jour (minutes, 0 = manuel uniquement)",
                             "selector": "Liste blanche (noms de villes séparés par des virgules)",
                             "blacklist": "Liste noire (identifiants de radars séparés par des virgules)"
                         }
@@ -81,13 +82,20 @@
                     "add_another": "Ajouter un autre point de passage"
                 }
             },
+            "route_corridor": {
+                "title": "Options de recherche d'itinéraire",
+                "description": "Choisis la largeur du corridor à rechercher autour de l'itinéraire.",
+                "data": {
+                    "corridor_width": "Largeur du corridor (mètres)"
+                }
+            },
             "route_options": {
                 "title": "Options de recherche d'itinéraire",
-                "description": "Choisis la largeur du corridor à rechercher autour de l'itinéraire, et quels radars inclure.",
+                "description": "Choisis quels radars inclure.\n\nAvec un corridor de {corridor_width} m, cet itinéraire nécessite {sample_count} points d'échantillonnage - une requête Lufop par point à chaque mise à jour. Intervalle de mise à jour suggéré ci-dessous : {suggested_interval} minutes. Active « Ajuster la largeur du corridor » pour revenir en arrière au lieu d'enregistrer.",
                 "data": {
-                    "corridor_width": "Largeur du corridor (mètres)",
                     "api_key": "Clé API",
-                    "country": "Pays"
+                    "country": "Pays",
+                    "adjust_corridor": "Ajuster la largeur du corridor au lieu d'enregistrer"
                 },
                 "sections": {
                     "type": {
@@ -102,6 +110,7 @@
                         "name": "Paramètres optionnels",
                         "data": {
                             "count": "Nombre maximum de radars",
+                            "update_interval": "Intervalle de mise à jour (minutes, 0 = manuel uniquement)",
                             "selector": "Liste blanche (noms de villes séparés par des virgules)",
                             "blacklist": "Liste noire (identifiants de radars séparés par des virgules)"
                         }
@@ -146,6 +155,7 @@
                         "name": "Paramètres optionnels",
                         "data": {
                             "count": "Nombre maximum de radars",
+                            "update_interval": "Intervalle de mise à jour (minutes, 0 = manuel uniquement)",
                             "selector": "Liste blanche (noms de villes séparés par des virgules)",
                             "blacklist": "Liste noire (identifiants de radars séparés par des virgules)"
                         }
@@ -168,13 +178,20 @@
                     "add_another": "Ajouter un autre point de passage"
                 }
             },
+            "route_corridor": {
+                "title": "Options de recherche d'itinéraire",
+                "description": "Choisis la largeur du corridor à rechercher autour de l'itinéraire.",
+                "data": {
+                    "corridor_width": "Largeur du corridor (mètres)"
+                }
+            },
             "route_options": {
                 "title": "Options de recherche d'itinéraire",
-                "description": "Choisis la largeur du corridor à rechercher autour de l'itinéraire, et quels radars inclure.",
+                "description": "Choisis quels radars inclure.\n\nAvec un corridor de {corridor_width} m, cet itinéraire nécessite {sample_count} points d'échantillonnage - une requête Lufop par point à chaque mise à jour. Intervalle de mise à jour suggéré ci-dessous : {suggested_interval} minutes. Active « Ajuster la largeur du corridor » pour revenir en arrière au lieu d'enregistrer.",
                 "data": {
-                    "corridor_width": "Largeur du corridor (mètres)",
                     "api_key": "Clé API",
-                    "country": "Pays"
+                    "country": "Pays",
+                    "adjust_corridor": "Ajuster la largeur du corridor au lieu d'enregistrer"
                 },
                 "sections": {
                     "type": {
@@ -189,6 +206,7 @@
                         "name": "Paramètres optionnels",
                         "data": {
                             "count": "Nombre maximum de radars",
+                            "update_interval": "Intervalle de mise à jour (minutes, 0 = manuel uniquement)",
                             "selector": "Liste blanche (noms de villes séparés par des virgules)",
                             "blacklist": "Liste noire (identifiants de radars séparés par des virgules)"
                         }
@@ -198,6 +216,18 @@
         },
         "error": {
             "route_needs_two_waypoints": "Un itinéraire nécessite au moins deux points de passage."
+        }
+    },
+    "services": {
+        "refresh": {
+            "name": "Actualiser Lufop",
+            "description": "Récupère immédiatement les derniers radars d'une zone ou d'un itinéraire Lufop Radar, sans attendre la prochaine mise à jour planifiée. Renvoie les radars trouvés.",
+            "fields": {
+                "config_entry_id": {
+                    "name": "Zone ou itinéraire",
+                    "description": "Quelle zone ou quel itinéraire Lufop Radar actualiser."
+                }
+            }
         }
     }
 }

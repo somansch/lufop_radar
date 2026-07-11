@@ -67,6 +67,7 @@
                         "name": "Optional settings",
                         "data": {
                             "count": "Maximum number of radars",
+                            "update_interval": "Update interval (minutes, 0 = manual only)",
                             "selector": "Whitelist (comma-separated city names)",
                             "blacklist": "Blacklist (comma-separated radar IDs)"
                         }
@@ -81,13 +82,20 @@
                     "add_another": "Add another waypoint"
                 }
             },
+            "route_corridor": {
+                "title": "Route search options",
+                "description": "Choose how wide a corridor around the route to search.",
+                "data": {
+                    "corridor_width": "Corridor width (meters)"
+                }
+            },
             "route_options": {
                 "title": "Route search options",
-                "description": "Choose how wide a corridor around the route to search, and which radars to include.",
+                "description": "Choose which radars to include.\n\nWith a {corridor_width}m corridor, this route needs {sample_count} sample points - one Lufop request per point on every poll. Suggested update interval below: {suggested_interval} minutes. Enable \"Adjust corridor width\" to go back and change it instead of saving.",
                 "data": {
-                    "corridor_width": "Corridor width (meters)",
                     "api_key": "API key",
-                    "country": "Country"
+                    "country": "Country",
+                    "adjust_corridor": "Adjust corridor width instead of saving"
                 },
                 "sections": {
                     "type": {
@@ -102,6 +110,7 @@
                         "name": "Optional settings",
                         "data": {
                             "count": "Maximum number of radars",
+                            "update_interval": "Update interval (minutes, 0 = manual only)",
                             "selector": "Whitelist (comma-separated city names)",
                             "blacklist": "Blacklist (comma-separated radar IDs)"
                         }
@@ -146,6 +155,7 @@
                         "name": "Optional settings",
                         "data": {
                             "count": "Maximum number of radars",
+                            "update_interval": "Update interval (minutes, 0 = manual only)",
                             "selector": "Whitelist (comma-separated city names)",
                             "blacklist": "Blacklist (comma-separated radar IDs)"
                         }
@@ -168,13 +178,20 @@
                     "add_another": "Add another waypoint"
                 }
             },
+            "route_corridor": {
+                "title": "Route search options",
+                "description": "Choose how wide a corridor around the route to search.",
+                "data": {
+                    "corridor_width": "Corridor width (meters)"
+                }
+            },
             "route_options": {
                 "title": "Route search options",
-                "description": "Choose how wide a corridor around the route to search, and which radars to include.",
+                "description": "Choose which radars to include.\n\nWith a {corridor_width}m corridor, this route needs {sample_count} sample points - one Lufop request per point on every poll. Suggested update interval below: {suggested_interval} minutes. Enable \"Adjust corridor width\" to go back and change it instead of saving.",
                 "data": {
-                    "corridor_width": "Corridor width (meters)",
                     "api_key": "API key",
-                    "country": "Country"
+                    "country": "Country",
+                    "adjust_corridor": "Adjust corridor width instead of saving"
                 },
                 "sections": {
                     "type": {
@@ -189,6 +206,7 @@
                         "name": "Optional settings",
                         "data": {
                             "count": "Maximum number of radars",
+                            "update_interval": "Update interval (minutes, 0 = manual only)",
                             "selector": "Whitelist (comma-separated city names)",
                             "blacklist": "Blacklist (comma-separated radar IDs)"
                         }
@@ -198,6 +216,18 @@
         },
         "error": {
             "route_needs_two_waypoints": "A route needs at least two waypoints."
+        }
+    },
+    "services": {
+        "refresh": {
+            "name": "Lufop Refresh",
+            "description": "Immediately fetch the latest radars for one Lufop Radar area or route, instead of waiting for its next scheduled poll. Returns the radars found.",
+            "fields": {
+                "config_entry_id": {
+                    "name": "Area or route",
+                    "description": "Which Lufop Radar area or route to refresh."
+                }
+            }
         }
     }
 }

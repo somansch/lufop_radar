@@ -140,6 +140,7 @@ The config wizard is available in English, German, and French, matching whicheve
 | **Types** – Mobile | Include mobile radar checks. In countries without a separate "mobile" listing (e.g. France), this also includes Lufop's "Chantier" entries - mobile radar units deployed in roadwork zones, not the roadwork itself. |
 | **Types** – Red light | Include red light cameras. |
 | **Optional settings** – Maximum number of radars | Upper limit on how many radars are tracked at once (default 9). |
+| **Optional settings** – Update interval (minutes, 0 = manual only) | How often this area polls Lufop. Defaults to 10 minutes; **0** disables automatic polling entirely - use the [`lufop_radar.refresh` service](#on-demand-refresh--automation-example) instead. Not a hard quota-safe limit: see the requests/day math above before lowering it, especially with several areas/routes on one key. |
 | **Optional settings** – Whitelist (comma-separated city names) | Comma-separated list of city names to keep, case-insensitive exact match (e.g. `Strasbourg,Colmar`). Empty (the default) means no filtering — every city is kept. |
 | **Optional settings** – Blacklist | Comma-separated list of radar IDs to always exclude, regardless of the whitelist (e.g. `12345,67890`). The ID is the radar's `id` attribute. |
 
@@ -150,9 +151,10 @@ For a commute or a regular trip, "area" search would need an impractically large
 1. Move the map to your route's starting point, then leave **Add another waypoint** checked and continue — one map screen per waypoint.
 2. Add a waypoint at every place the route bends noticeably. Radars are searched in a corridor along the *straight* line between consecutive waypoints, not along actual roads (there's no routing engine involved), so a long straight line across a curve will miss radars on the curve or search too widely off to the side.
 3. Uncheck **Add another waypoint** once you've placed the last one (at least 2 total).
-4. Set the **Corridor width (meters)** — how far to each side of the route line to search (default 300 m) — plus the API key, country, radar-type, and optional-settings fields from the table above.
+4. Set the **Corridor width (meters)** — how far to each side of the route line to search (default 300 m).
+5. The next screen shows how many requests that corridor width needs per poll (see below) and asks for the API key, country, radar-type, and optional-settings fields from the table above. Not happy with the request count? Enable **Adjust corridor width instead of saving** to jump back to step 4 without redrawing the route, then continue again once it looks right.
 
-Internally, the integration interpolates extra sample points along each straight segment (spaced one corridor-width apart) and queries Lufop around every one of them, then merges and deduplicates the results by radar ID.
+Internally, the integration interpolates extra sample points along each straight segment (spaced one corridor-width apart) and queries Lufop around every one of them, then merges and deduplicates the results by radar ID. So the number of requests a poll needs depends on both the corridor width *and* the distance between waypoints, not just the number of waypoints - e.g. two waypoints 2 km apart with a 100 m corridor interpolates to 21 sample points (`int(2000 // 100) + 1`), i.e. 21 requests per poll. The wizard shows this exact count, plus the resulting suggested **Update interval**, for your own route before you save.
 
 Editing a route via **Configure** first asks **what to edit**:
 
@@ -160,6 +162,40 @@ Editing a route via **Configure** first asks **what to edit**:
 - **Edit search settings** — jumps straight to corridor width, API key, country, radar types, and the optional settings, without touching the waypoints at all.
 
 Every field above can be changed afterwards: go to **Settings → Devices & Services**, find the entry for the area/route you want to change, and click **Configure**.
+
+### On-demand refresh & automation example
+
+Every area/route has an **Update interval** (see the tables above); setting it to **0** turns off automatic polling entirely, so it only ever refreshes when *you* ask it to - via the **`lufop_radar.refresh`** action ("Lufop Refresh" in the UI). Call it targeting the area/route you want, and it immediately fetches the latest radars, creates/updates/removes that entry's `geo_location` entities exactly like a normal scheduled poll would, and (optionally) returns the radars found so an automation can use them directly.
+
+A common use case: a route for your commute, set to manual-only, refreshed and sent to your phone the moment you actually leave home - instead of polling every few minutes all day for a route you only drive once or twice:
+
+```yaml
+automation:
+  - alias: "Send commute radars when leaving home"
+    triggers:
+      - trigger: zone
+        entity_id: person.your_name
+        zone: zone.home
+        event: leave
+    actions:
+      - action: lufop_radar.refresh
+        data:
+          config_entry_id: YOUR_ROUTE_CONFIG_ENTRY_ID
+        response_variable: commute_radars
+      - action: notify.whatsapp   # whichever WhatsApp notify service you have set up (e.g. a CallMeBot or Twilio integration) - not a built-in Home Assistant service
+        data:
+          message: >-
+            {% if commute_radars.radars %}
+            🚨 {{ commute_radars.radars | count }} radar(s) on your commute:
+            {% for r in commute_radars.radars %}
+            - {{ r.city }}, {{ r.street }}{% if r.speed %} ({{ r.speed }} km/h){% endif %}
+            {% endfor %}
+            {% else %}
+            No radars currently reported on your commute. Safe drive!
+            {% endif %}
+```
+
+Find `YOUR_ROUTE_CONFIG_ENTRY_ID` under **Settings → Devices & Services**, click the "Lufop Radar" integration, open the route's entry, and copy its ID from the browser's URL - or just build the action once in **Developer Tools → Actions**, picking the route from the "Area or route" dropdown, then switch to YAML mode there to copy the resolved `config_entry_id`.
 
 ### Created entities
 
