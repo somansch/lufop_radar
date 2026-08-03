@@ -16,7 +16,7 @@ Each detected radar is exposed as a `geo_location` entity, so it shows up native
 
 ### Map card
 
-<img src="docs/map-card-example.png" alt="Map card showing Lufop speed-limit-sign markers around Paris" width="500">
+<img src="https://raw.githubusercontent.com/somansch/lufop_radar/main/docs/map-card-example.png" alt="Map card showing Lufop speed-limit-sign markers around Paris" width="500">
 
 Each detected radar's `entity_picture` is a generated speed-limit-sign image (or a traffic-light sign for red-light cameras), so it renders directly as the map marker instead of a generic dot. Each configured area/route gets its own `source`, named `lufop_radar_<area>` (e.g. `lufop_radar_paris`), so you can show just one area on a map card instead of all of them combined:
 
@@ -30,7 +30,7 @@ Use `geo_location_sources: [all]` (or list every `lufop_radar_<area>` source) to
 
 ### Markdown card
 
-<img src="docs/markdown-card-example.png" alt="Markdown card listing Paris-area radars sorted by distance" width="500">
+<img src="https://raw.githubusercontent.com/somansch/lufop_radar/main/docs/markdown-card-example.png" alt="Markdown card listing Paris-area radars sorted by distance" width="500">
 
 The list is sorted by distance to the area's center point, closest first, each entry linking to its Lufop detail page:
 
