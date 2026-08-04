@@ -14,7 +14,7 @@ from homeassistant.util import location as location_util
 from homeassistant.util import slugify
 
 from .api import classify_type
-from .const import DOMAIN, SEARCH_MODE_ROUTE
+from .const import DOMAIN, EVENT_NEW_RADAR, SEARCH_MODE_ROUTE
 from .coordinator import LufopCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,13 +63,20 @@ async def async_setup_entry(
     registry = er.async_get(hass)
     unique_prefix = f"{DOMAIN}-{coordinator.displayname}-"
     known_entities: dict[str, LufopLocationEvent] = {}
+    # Set False after the first sync below - every radar reported there is
+    # simply "already there" from the entry's very first data fetch, not a
+    # new detection, so EVENT_NEW_RADAR only starts firing from the next
+    # poll onwards.
+    first_sync = True
 
     @callback
     def _sync_entities() -> None:
         """Add newly reported radars and remove ones no longer in range."""
+        nonlocal first_sync
         radars = coordinator.data.radars[: coordinator.sensorcount]
         current_ids = {str(radar["ID"]) for radar in radars}
         new_entities = []
+        new_radars = []
 
         for radar in radars:
             radar_id = str(radar["ID"])
@@ -79,6 +86,7 @@ async def async_setup_entry(
                 entity = LufopLocationEvent(coordinator, radar_id, radar)
                 known_entities[radar_id] = entity
                 new_entities.append(entity)
+                new_radars.append(radar)
 
         # Purge every registry entry for this area that no longer matches a
         # currently reported radar - both entries tracked in `known_entities`
@@ -99,6 +107,25 @@ async def async_setup_entry(
 
         if new_entities:
             async_add_entities(new_entities)
+
+        if not first_sync:
+            for radar in new_radars:
+                hass.bus.async_fire(
+                    EVENT_NEW_RADAR,
+                    {
+                        "config_entry_id": config_entry.entry_id,
+                        "area": coordinator.displayname,
+                        "id": str(radar["ID"]),
+                        "type": classify_type(radar),
+                        "speed": radar.get("vitesse"),
+                        "street": radar.get("voie"),
+                        "city": radar.get("commune"),
+                        "country": radar.get("pays"),
+                        "latitude": float(radar["lat"]),
+                        "longitude": float(radar["lng"]),
+                    },
+                )
+        first_sync = False
 
     coordinator.async_add_listener(_sync_entities)
     _sync_entities()

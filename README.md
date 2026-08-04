@@ -2,7 +2,7 @@
 
 [![GitHub release](https://img.shields.io/github/v/release/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/releases/latest)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![License](https://img.shields.io/github/license/somansch/lufop_radar)](LICENSE)
+[![License](https://img.shields.io/github/license/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/blob/main/LICENSE)
 
 ## Overview
 
@@ -20,11 +20,16 @@ Each detected radar is exposed as a `geo_location` entity, so it shows up native
 
 Each detected radar's `entity_picture` is a generated speed-limit-sign image (or a traffic-light sign for red-light cameras), so it renders directly as the map marker instead of a generic dot. Each configured area/route gets its own `source`, named `lufop_radar_<area>` (e.g. `lufop_radar_paris`), so you can show just one area on a map card instead of all of them combined:
 
+<details>
+<summary>YAML</summary>
+
 ```yaml
 type: map
 geo_location_sources:
   - lufop_radar_paris
 ```
+
+</details>
 
 Use `geo_location_sources: [all]` (or list every `lufop_radar_<area>` source) to show all configured areas on the same map.
 
@@ -33,6 +38,9 @@ Use `geo_location_sources: [all]` (or list every `lufop_radar_<area>` source) to
 <img src="https://raw.githubusercontent.com/somansch/lufop_radar/main/docs/markdown-card-example.png" alt="Markdown card listing Paris-area radars sorted by distance" width="500">
 
 The list is sorted by distance to the area's center point, closest first, each entry linking to its Lufop detail page:
+
+<details>
+<summary>YAML</summary>
 
 ```jinja2
 <h1></h1>
@@ -75,6 +83,107 @@ The list is sorted by distance to the area's center point, closest first, each e
 </div>
 {%- endif -%}
 ```
+
+</details>
+
+## Automations
+
+### Notify when a new radar is reported
+
+#### New radars anywhere in the integration's configured area/route
+
+Every area/route fires a **`lufop_radar_new_radar`** event the moment a genuinely new radar is detected on one of its polls (or an on-demand `lufop_radar.refresh`) - never for a radar already known from an earlier poll, and never right after Home Assistant starts (that first fetch is just "here's what's already there", not a new detection). Trigger an automation directly off it, no zone setup required:
+
+<details>
+<summary>YAML</summary>
+
+```yaml
+automation:
+  - alias: "New radar message"
+    triggers:
+      - trigger: event
+        event_type: lufop_radar_new_radar
+        event_data:
+          area: Paris
+    actions:
+      - action: notify.mobile_app_your_mobile
+        data:
+          message: >-
+            Neuer Radar: {{ trigger.event.data.street }},
+            {{ trigger.event.data.city }}
+            ({{ trigger.event.data.speed }} km/h)
+```
+
+</details>
+
+The event's data includes `config_entry_id`, `area`, `id`, `type` (`mobile`/`fixed`/`redlight`), `speed`, `street`, `city`, `country`, `latitude`, and `longitude`. Drop the `event_data: area: ...` filter to match every configured area/route instead of just one. Since it's a plain event (not tied to an entity), the data is read from `trigger.event.data.*`.
+
+#### New radars entering a defined zone
+
+Want a proximity-based notification instead - e.g. only once a radar is inside your home zone, regardless of when it was first detected? Every radar is also a `geo_location` entity ([see "Created entities"](#created-entities)), so Home Assistant's built-in [geolocation trigger](https://www.home-assistant.io/docs/automation/trigger/#zone-trigger) works too:
+
+<details>
+<summary>YAML</summary>
+
+```yaml
+automation:
+  - alias: "New radar in zone"
+    trigger:
+      - platform: geolocation
+        source: lufop_radar_paris
+        zone: zone.home
+        event: enter
+    action:
+      - service: notify.mobile_app_your_mobile
+        data:
+          message: >-
+            Neuer Radar: {{ state_attr(trigger.entity_id, 'street') }},
+            {{ state_attr(trigger.entity_id, 'city') }}
+            ({{ state_attr(trigger.entity_id, 'speed') }} km/h)
+```
+
+</details>
+
+Since a stationary (`fixed`) radar's position never changes after creation, "entering the zone" effectively only happens once, right when that radar is first created - a similar end result to the event above for that case, but scoped to the zone's own radius rather than the whole configured area, and requiring a zone that overlaps the area you actually care about. It also naturally covers a `mobile` radar's occasional position updates, which the event does not (that only fires once, on first detection). Since it's tied to an entity, the data is read from `state_attr(trigger.entity_id, '...')`.
+
+### On-demand refresh & automation example
+
+Every area/route has an **Update interval** (see the tables above); setting it to **0** turns off automatic polling entirely, so it only ever refreshes when *you* ask it to - via the **`lufop_radar.refresh`** action ("Lufop Refresh" in the UI). Call it targeting the area/route you want, and it immediately fetches the latest radars, creates/updates/removes that entry's `geo_location` entities exactly like a normal scheduled poll would, and (optionally) returns the radars found so an automation can use them directly.
+
+A common use case: a route for your commute, set to manual-only, refreshed and sent to your phone the moment you actually leave home - instead of polling every few minutes all day for a route you only drive once or twice:
+
+<details>
+<summary>YAML</summary>
+
+```yaml
+automation:
+  - alias: "Send commute radars when leaving home"
+    triggers:
+      - trigger: zone
+        entity_id: person.your_name
+        zone: zone.home
+        event: leave
+    actions:
+      - action: lufop_radar.refresh
+        data:
+          config_entry_id: YOUR_ROUTE_CONFIG_ENTRY_ID
+        response_variable: commute_radars
+      - action: notify.whatsapp   # whichever WhatsApp notify service you have set up (e.g. a CallMeBot or Twilio integration) - not a built-in Home Assistant service
+        data:
+          message: >-
+            {% if commute_radars.radars %}
+            🚨 {{ commute_radars.radars | count }} radar(s) on your commute:
+            {% for r in commute_radars.radars %}
+            - {{ r.city }}, {{ r.street }}{% if r.speed %} ({{ r.speed }} km/h){% endif %}
+            {% endfor %}
+            {% else %}
+            No radars currently reported on your commute. Safe drive!
+            {% endif %}
+```
+
+</details>
+
+Find `YOUR_ROUTE_CONFIG_ENTRY_ID` under **Settings → Devices & Services**, click the "Lufop Radar" integration, open the route's entry, and copy its ID from the browser's URL - or just build the action once in **Developer Tools → Actions**, picking the route from the "Area or route" dropdown, then switch to YAML mode there to copy the resolved `config_entry_id`.
 
 ## Getting an API key
 
@@ -162,40 +271,6 @@ Editing a route via **Configure** first asks **what to edit**:
 - **Edit search settings** — jumps straight to corridor width, API key, country, radar types, and the optional settings, without touching the waypoints at all.
 
 Every field above can be changed afterwards: go to **Settings → Devices & Services**, find the entry for the area/route you want to change, and click **Configure**.
-
-### On-demand refresh & automation example
-
-Every area/route has an **Update interval** (see the tables above); setting it to **0** turns off automatic polling entirely, so it only ever refreshes when *you* ask it to - via the **`lufop_radar.refresh`** action ("Lufop Refresh" in the UI). Call it targeting the area/route you want, and it immediately fetches the latest radars, creates/updates/removes that entry's `geo_location` entities exactly like a normal scheduled poll would, and (optionally) returns the radars found so an automation can use them directly.
-
-A common use case: a route for your commute, set to manual-only, refreshed and sent to your phone the moment you actually leave home - instead of polling every few minutes all day for a route you only drive once or twice:
-
-```yaml
-automation:
-  - alias: "Send commute radars when leaving home"
-    triggers:
-      - trigger: zone
-        entity_id: person.your_name
-        zone: zone.home
-        event: leave
-    actions:
-      - action: lufop_radar.refresh
-        data:
-          config_entry_id: YOUR_ROUTE_CONFIG_ENTRY_ID
-        response_variable: commute_radars
-      - action: notify.whatsapp   # whichever WhatsApp notify service you have set up (e.g. a CallMeBot or Twilio integration) - not a built-in Home Assistant service
-        data:
-          message: >-
-            {% if commute_radars.radars %}
-            🚨 {{ commute_radars.radars | count }} radar(s) on your commute:
-            {% for r in commute_radars.radars %}
-            - {{ r.city }}, {{ r.street }}{% if r.speed %} ({{ r.speed }} km/h){% endif %}
-            {% endfor %}
-            {% else %}
-            No radars currently reported on your commute. Safe drive!
-            {% endif %}
-```
-
-Find `YOUR_ROUTE_CONFIG_ENTRY_ID` under **Settings → Devices & Services**, click the "Lufop Radar" integration, open the route's entry, and copy its ID from the browser's URL - or just build the action once in **Developer Tools → Actions**, picking the route from the "Area or route" dropdown, then switch to YAML mode there to copy the resolved `config_entry_id`.
 
 ### Created entities
 

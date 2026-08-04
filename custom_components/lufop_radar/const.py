@@ -68,3 +68,9 @@ UPDATE_INTERVAL_MANUAL = 0
 
 SERVICE_REFRESH = "refresh"
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
+
+# Fired once per radar that's newly reported for an entry - never for
+# radars already known from an earlier poll, and never during the very
+# first sync right after setup (those are just "already there", not newly
+# detected). See geo_location.py's _sync_entities.
+EVENT_NEW_RADAR = f"{DOMAIN}_new_radar"
