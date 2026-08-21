@@ -119,6 +119,7 @@
             }
         },
         "abort": {
+            "already_configured": "Lufop Radar ist für diesen Namen bereits eingerichtet. Bitte einen anderen wählen.",
             "location_missing": "Bitte Position auswählen. (Karte verschieben)"
         },
         "error": {

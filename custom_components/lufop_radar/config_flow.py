@@ -14,6 +14,7 @@ from homeassistant.const import (
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import selector
+from homeassistant.util import slugify
 
 from .const import (
     CONF_BLACKLIST,
@@ -197,6 +198,27 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         if user_input is not None:
             self._name = user_input[CONF_NAME]
+            # Every entity this entry creates is identified by the entry's
+            # name - "lufop_radar-<name>-<radar id>" and "-total". A second
+            # entry under the same name therefore produces the same ids, and
+            # Home Assistant drops the entities it cannot tell apart: the new
+            # area would sit there empty, explained only by a line in the log.
+            # Claiming the name as the entry's unique id turns that into a
+            # plain "already configured" the moment it is typed, and gives
+            # the entry an id at all, which the coordinator's log name reads.
+            await self.async_set_unique_id(slugify(self._name))
+            self._abort_if_unique_id_configured()
+            # ...and the same check against entries that predate the unique
+            # id, which carry none and so collide with nothing. They are the
+            # ones already holding the entity ids a duplicate would claim, so
+            # leaving them out would let exactly the case this prevents slip
+            # through. Compared slugified, so both paths agree on what counts
+            # as the same name.
+            if any(
+                slugify(entry.data.get(CONF_NAME, "")) == slugify(self._name)
+                for entry in self._async_current_entries()
+            ):
+                return self.async_abort(reason="already_configured")
             if user_input[CONF_SEARCH_MODE] == SEARCH_MODE_ROUTE:
                 self._waypoints = []
                 return await self.async_step_waypoint()

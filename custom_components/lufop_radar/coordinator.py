@@ -89,7 +89,11 @@ class LufopCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            name=f"{DOMAIN} ({config_entry.unique_id})",
+            # Entries created before the flow claimed a unique id have none,
+            # which rendered every one of them as "lufop_radar (None)" -
+            # indistinguishable in the log. The display name is what a person
+            # recognises anyway.
+            name=f"{DOMAIN} ({config_entry.unique_id or self.displayname})",
             update_method=self.async_update_data,
             update_interval=update_interval,
         )

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from math import ceil
 
 from aiohttp import ClientError
 from homeassistant.core import HomeAssistant
@@ -84,6 +85,14 @@ class LufopAPI:
 
         Lufop's search margin ("m") is documented as roughly 1/10 km per unit,
         so a radius in km is converted to m = radius_km * 10.
+
+        Rounded up, not to nearest. The margin is a whole number, and the
+        smallest corridor width the config flow allows - 50m - lands exactly
+        on 0.5, which round() resolves to 0: the narrowest search a person
+        can ask for was the one that asked for no margin at all. Rounding up
+        also keeps every other value from quietly searching less ground than
+        was requested, which for a radar warning is the wrong direction to
+        err in.
         """
         await self._throttle()
         params = {
@@ -92,7 +101,7 @@ class LufopAPI:
             "pays": country,
             "nbr": str(FREE_PLAN_MAX_RESULTS),
             "q": f"{latitude},{longitude}",
-            "m": str(round(radius_km * 10)),
+            "m": str(max(1, ceil(radius_km * 10))),
         }
         try:
             async with self._session.get(BASE_URL, params=params) as response:
@@ -113,6 +122,17 @@ class LufopAPI:
                 data = await response.json(content_type=None)
         except ClientError as err:
             raise LufopAPIError(f"Failed to reach Lufop API: {err}") from err
+
+        if data is None:
+            # "Nothing in range" comes back as a bare null, not as an
+            # empty list - confirmed against the live API, where the same
+            # point returns radars at a wider margin and null at a narrow
+            # one. Treating it as an error made an empty area look like an
+            # outage: every entity of that entry went unavailable. Route
+            # mode felt it worst, since it queries one narrow corridor per
+            # sample point and most of them legitimately hold no radar at
+            # all, so a single empty stretch failed the whole poll.
+            return []
 
         if not isinstance(data, list):
             # The API returns an error object (e.g. {"status": "error", ...})

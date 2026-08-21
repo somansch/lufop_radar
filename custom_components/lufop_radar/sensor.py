@@ -29,8 +29,12 @@ class LufopTotalSensor(CoordinatorEntity):
 
     def __init__(self, coordinator: LufopCoordinator) -> None:
         super().__init__(coordinator)
-        self.name = f"Lufop {self.coordinator.displayname} Total"
-        self.unique_id = f"{DOMAIN}-{self.coordinator.displayname}-total"
+        # _attr_*, not self.name/self.unique_id: those are cached_property on
+        # Entity, so assigning to them happens to work today but is not the
+        # documented way and would break the day they go back to being plain
+        # properties. geo_location.py already does it this way.
+        self._attr_name = f"Lufop {self.coordinator.displayname} Total"
+        self._attr_unique_id = f"{DOMAIN}-{self.coordinator.displayname}-total"
 
     @callback
     def _handle_coordinator_update(self) -> None:

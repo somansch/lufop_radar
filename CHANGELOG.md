@@ -2,6 +2,14 @@
 
 All notable changes to this integration are documented here.
 
+## v2.1.2
+
+### Fixed
+- **An area with no radars in it looked like an outage.** Lufop answers “nothing in range” with a bare `null` rather than an empty list, and that was read as a broken response: the poll failed and every entity of that entry went unavailable, with `Lufop API returned an error: None` in the log. Route entries felt it worst – a route queries one narrow corridor per sample point, and most stretches of road legitimately hold no radar at all, so a single empty one failed the whole poll. An empty answer is now simply an empty result.
+- **The narrowest corridor searched nothing at all.** A radius is converted into Lufop’s own search margin, one unit per 100m, and the result was rounded to the nearest whole unit. The smallest corridor width the form accepts, 50m, lands exactly on half a unit, which Python rounds to zero – so the tightest search anyone could ask for was the one that asked for no margin. Every other value rounded to nearest as well, meaning half of them quietly searched less ground than requested. The margin is now rounded up and never smaller than one unit.
+- **A second area with the same name came up empty.** Every entity an entry creates is identified by that entry’s name, so two entries called the same thing produced identical identifiers and Home Assistant dropped the ones it could not tell apart – the new area appeared with no radars and no sensor, explained only by a line in the log. The name is now claimed when it is typed, so a duplicate is refused right there with “already configured” instead of failing quietly several screens later.
+- **Every area logged under the same name.** Entries carried no identifier of their own, so each one’s coordinator wrote its messages as `lufop_radar (None)` and there was no telling which area a message came from. New entries use the name they were set up under; existing ones fall back to it.
+
 ## v2.1.0
 
 ### Added
