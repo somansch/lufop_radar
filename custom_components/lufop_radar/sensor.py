@@ -1,6 +1,6 @@
 import logging
 
-from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -22,10 +22,19 @@ async def async_setup_entry(
     async_add_entities([LufopTotalSensor(coordinator)])
 
 
-class LufopTotalSensor(CoordinatorEntity):
+class LufopTotalSensor(CoordinatorEntity, SensorEntity):
+    """How many radars this area currently reports.
+
+    A SensorEntity, which it has to be for the recorder to keep long-term
+    statistics of it: the state class was being put into the attributes,
+    where it reads like the real thing and is ignored by the machinery that
+    acts on it. The entity asked for statistics and quietly got none.
+    """
+
     _attr_should_poll = False
     _attr_has_entity_name = True
     _attr_icon = "mdi:map-marker-radius"
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: LufopCoordinator) -> None:
         super().__init__(coordinator)
@@ -34,14 +43,18 @@ class LufopTotalSensor(CoordinatorEntity):
         # documented way and would break the day they go back to being plain
         # properties. geo_location.py already does it this way.
         self._attr_name = f"Lufop {self.coordinator.displayname} Total"
-        self._attr_unique_id = f"{DOMAIN}-{self.coordinator.displayname}-total"
+        # Keyed on the entry rather than on its display name, so that
+        # renaming an area keeps the sensor it belongs to - and its history.
+        self._attr_unique_id = (
+            f"{DOMAIN}-{self.coordinator.config_entry.entry_id}-total"
+        )
 
     @callback
     def _handle_coordinator_update(self) -> None:
         self.async_write_ha_state()
 
     @property
-    def state(self):
+    def native_value(self):
         radar_count = len(self.coordinator.data.radars)
         if radar_count > self.coordinator.sensorcount:
             return self.coordinator.sensorcount
@@ -49,7 +62,9 @@ class LufopTotalSensor(CoordinatorEntity):
 
     @property
     def extra_state_attributes(self):
-        attrs = {"state_class": SensorStateClass.MEASUREMENT}
+        # The breakdown per town, and nothing else: "state_class" used to
+        # sit here too, which is not where anything reads it.
+        attrs: dict[str, int] = {}
         for radar in self.coordinator.data.radars:
             city = radar.get("commune") or "?"
             attrs[city] = attrs.get(city, 0) + 1

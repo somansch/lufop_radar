@@ -116,14 +116,24 @@
                         }
                     }
                 }
+            },
+            "reauth_confirm": {
+                "title": "Lufop Radar needs a new API key",
+                "description": "Lufop no longer accepts the API key stored for \"{name}\". Enter a current one to carry on.",
+                "data": {
+                    "api_key": "API key"
+                }
             }
         },
         "abort": {
             "already_configured": "Lufop Radar is already configured for this name. Pick a different one.",
-            "location_missing": "Please select a position. (move the map)"
+            "location_missing": "Please select a position. (move the map)",
+            "reauth_successful": "The new API key was accepted."
         },
         "error": {
-            "route_needs_two_waypoints": "A route needs at least two waypoints."
+            "route_needs_two_waypoints": "A route needs at least two waypoints.",
+            "invalid_auth": "Lufop rejected this API key.",
+            "cannot_connect": "Could not reach the Lufop API. Check the connection and try again."
         }
     },
     "options": {

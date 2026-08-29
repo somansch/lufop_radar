@@ -241,7 +241,7 @@ The config wizard is available in English, German, and French, matching whicheve
 
 | Field | Description |
 |---|---|
-| **Display name** | Freely chosen name for this area. Used as a suffix in entity names and IDs, and as the `area` attribute on every `geo_location` entity it creates. |
+| **Display name** | Freely chosen name for this area. It names the entities it creates and is the `area` attribute on every `geo_location` entity. Renaming later is safe: entities are identified by the config entry, not by its name. |
 | **Section** | Drag the map to the center point you want to monitor and adjust the radius circle. All radars within this radius are reported. |
 | **API key** | Your personal Lufop API key (see [Getting an API key](#getting-an-api-key)). |
 | **Country** | The country to query, shown by name and sorted alphabetically (Lufop scopes each request to a single country on the free plan). |

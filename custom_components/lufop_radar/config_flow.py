@@ -16,6 +16,7 @@ from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import selector
 from homeassistant.util import slugify
 
+from .api import LufopAPI, LufopAPIError, LufopAuthError
 from .const import (
     CONF_BLACKLIST,
     CONF_CORRIDOR_WIDTH,
@@ -334,6 +335,43 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
             last_step=True,
         )
 
+    async def async_step_reauth(self, entry_data):
+        """Lufop has rejected the stored key; ask for a new one.
+
+        Reached from ConfigEntryAuthFailed, which the coordinator raises
+        when the key check comes back rejected - see
+        LufopCoordinator.async_check_key.
+        """
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        """Take a new key, and only save it once Lufop has accepted it."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        errors = {}
+
+        if user_input is not None:
+            api = LufopAPI(self.hass, user_input[CONF_API_KEY])
+            try:
+                await api.get_meta()
+            except LufopAuthError:
+                errors["base"] = "invalid_auth"
+            except LufopAPIError:
+                # Lufop unreachable rather than the key refused. Saying so
+                # keeps a person from throwing away a key that is fine.
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data={**entry.data, CONF_API_KEY: user_input[CONF_API_KEY]},
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            description_placeholders={"name": entry.data.get(CONF_NAME, "")},
+            errors=errors,
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
@@ -342,7 +380,11 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class LufopOptionsFlow(OptionsFlowWithConfigEntry):
     def __init__(self, config_entry) -> None:
-        self._config_entry = config_entry
+        # The parent is what sets self._options, which self.options reads.
+        # Overriding __init__ without calling it left that attribute
+        # missing: nothing asks for it today, so nothing broke, and the
+        # first line that does would have found an AttributeError.
+        super().__init__(config_entry)
         self._waypoints: list[dict] = []
         self._existing_waypoints: list[dict] = []
         self._review_index: int = 0

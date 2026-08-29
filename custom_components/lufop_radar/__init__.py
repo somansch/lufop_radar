@@ -36,6 +36,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hass.data.setdefault(DOMAIN, {})
 
     coordinator = LufopCoordinator(hass, config_entry)
+
+    # Before anything is fetched, and in manual mode too, where nothing
+    # would be fetched at all: this is where a key that has been revoked
+    # since setup turns into the dialog asking for a new one.
+    await coordinator.async_check_key()
+
     if coordinator.update_interval is None:
         # Manual-only (update_interval configured as 0): entities start
         # empty rather than making an API call on every startup/reload -

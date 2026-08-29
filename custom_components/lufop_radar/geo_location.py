@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 from urllib.parse import quote
+from xml.sax.saxutils import escape
 
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.config_entries import ConfigEntry
@@ -10,6 +11,7 @@ from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import location as location_util
 from homeassistant.util import slugify
 
@@ -42,11 +44,17 @@ def _sign_picture(content: str, font_size: int = 40) -> str:
     relying on MDI icons - the map card was found to not render those at
     all, falling back to text initials of the entity name instead.
     """
+    # Escaped against the markup it is being put into. The value comes
+    # straight from the API, and percent-encoding the finished document
+    # afterwards does not help: it encodes a "<" that arrived in the value
+    # and a "<" that belongs to the SVG exactly alike, so a speed reading
+    # "</text>" would close the element it was meant to fill.
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
         '<circle cx="50" cy="50" r="46" fill="white" stroke="#e30613" stroke-width="9"/>'
         f'<text x="50" y="54" font-family="Arial,Helvetica,sans-serif" font-weight="bold" '
-        f'font-size="{font_size}" fill="black" text-anchor="middle" dominant-baseline="middle">{content}</text>'
+        f'font-size="{font_size}" fill="black" text-anchor="middle" '
+        f'dominant-baseline="middle">{escape(str(content))}</text>'
         "</svg>"
     )
     return "data:image/svg+xml," + quote(svg)
@@ -61,7 +69,11 @@ async def async_setup_entry(
     coordinator: LufopCoordinator = hass.data[DOMAIN][config_entry.entry_id].coordinator
 
     registry = er.async_get(hass)
-    unique_prefix = f"{DOMAIN}-{coordinator.displayname}-"
+    # The entry, not the name the user gave it. A display name can be
+    # changed, and every identifier built from it changed with it: Home
+    # Assistant then saw a set of entities it had never met, while the old
+    # ones stayed behind as orphans. The entry id never changes.
+    unique_prefix = f"{DOMAIN}-{config_entry.entry_id}-"
     known_entities: dict[str, LufopLocationEvent] = {}
     # Set False after the first sync below - every radar reported there is
     # simply "already there" from the entry's very first data fetch, not a
@@ -73,16 +85,24 @@ async def async_setup_entry(
     def _sync_entities() -> None:
         """Add newly reported radars and remove ones no longer in range."""
         nonlocal first_sync
+        if not coordinator.last_update_success:
+            # A failed poll leaves the previous data in place, so there is
+            # nothing here to add or remove and nothing that could be new.
+            # The radars themselves go unavailable on their own - each one
+            # is a CoordinatorEntity - rather than standing on the map with
+            # a position nobody has confirmed since the outage began.
+            return
         radars = coordinator.data.radars[: coordinator.sensorcount]
         current_ids = {str(radar["ID"]) for radar in radars}
         new_entities = []
         new_radars = []
 
+        # Only what is new is built here. An entity that already exists reads
+        # this same poll for itself in _handle_coordinator_update, so there is
+        # nothing to hand it.
         for radar in radars:
             radar_id = str(radar["ID"])
-            if radar_id in known_entities:
-                known_entities[radar_id].update_from_radar(radar)
-            else:
+            if radar_id not in known_entities:
                 entity = LufopLocationEvent(coordinator, radar_id, radar)
                 known_entities[radar_id] = entity
                 new_entities.append(entity)
@@ -131,18 +151,26 @@ async def async_setup_entry(
     _sync_entities()
 
 
-class LufopLocationEvent(GeolocationEvent):
-    """Represents a single Lufop radar as a geolocation event."""
+class LufopLocationEvent(CoordinatorEntity[LufopCoordinator], GeolocationEvent):
+    """Represents a single Lufop radar as a geolocation event.
 
-    _attr_should_poll = False
+    A CoordinatorEntity, so that a failed poll takes the marker with it.
+    Holding the coordinator by hand instead left every radar reporting its
+    last known position with nothing saying the data had stopped arriving -
+    while the count sensor, which is one of these, correctly went
+    unavailable. On an integration people use while driving, that is the
+    wrong way round.
+    """
 
     def __init__(self, coordinator: LufopCoordinator, radar_id: str, radar: dict) -> None:
-        self._coordinator = coordinator
+        super().__init__(coordinator)
         self._radar_id = radar_id
         # Per-area source (e.g. "lufop_radar_berlin") so each configured area
         # can be selected on its own via the map card's geo_location_sources.
         self._attr_source = f"{DOMAIN}_{slugify(coordinator.displayname)}"
-        self._attr_unique_id = f"{DOMAIN}-{coordinator.displayname}-{radar_id}"
+        self._attr_unique_id = (
+            f"{DOMAIN}-{coordinator.config_entry.entry_id}-{radar_id}"
+        )
         self._attr_unit_of_measurement = UnitOfLength.KILOMETERS
         self._extra_attrs: dict[str, Any] = {}
         self._apply(radar)
@@ -151,7 +179,7 @@ class LufopLocationEvent(GeolocationEvent):
         city = radar.get("commune") or ""
         street = radar.get("voie") or ""
         location_label = ", ".join(part for part in (city, street) if part) or "Radar"
-        self._attr_name = f"Lufop {self._coordinator.displayname} {location_label}"
+        self._attr_name = f"Lufop {self.coordinator.displayname} {location_label}"
         self._attr_latitude = float(radar["lat"])
         self._attr_longitude = float(radar["lng"])
         radar_type = classify_type(radar)
@@ -167,7 +195,7 @@ class LufopLocationEvent(GeolocationEvent):
                 self._attr_latitude, self._attr_longitude
             )
         self._extra_attrs = {
-            "area": self._coordinator.displayname,
+            "area": self.coordinator.displayname,
             "type": radar_type,
             "id": self._radar_id,
             "speed": radar.get("vitesse"),
@@ -184,10 +212,10 @@ class LufopLocationEvent(GeolocationEvent):
         the area's center point in area mode, or the closest route waypoint
         in route mode.
         """
-        if self._coordinator.search_mode == SEARCH_MODE_ROUTE:
-            reference_points = self._coordinator.waypoints
+        if self.coordinator.search_mode == SEARCH_MODE_ROUTE:
+            reference_points = self.coordinator.waypoints
         else:
-            reference_points = [self._coordinator.location]
+            reference_points = [self.coordinator.location]
 
         distances = [
             meters
@@ -200,15 +228,28 @@ class LufopLocationEvent(GeolocationEvent):
 
     async def async_added_to_hass(self) -> None:
         """Calculate distance once the entity has access to hass.config."""
+        # First, so that CoordinatorEntity subscribes this entity to the
+        # coordinator. Without it the marker would never hear that a poll
+        # failed, which is the whole point of being one.
+        await super().async_added_to_hass()
         self._attr_distance = self._distance_from_area_center(
             self._attr_latitude, self._attr_longitude
         )
         self.async_write_ha_state()
 
     @callback
-    def update_from_radar(self, radar: dict) -> None:
-        """Refresh this entity's state from newly polled data."""
-        self._apply(radar)
+    def _handle_coordinator_update(self) -> None:
+        """Take this radar's own record out of the poll that just landed.
+
+        Reads rather than waits to be handed the data, so that a poll which
+        failed still reaches the entity: there is no record to apply then,
+        and writing the state is what turns the marker unavailable.
+        """
+        if self.coordinator.last_update_success:
+            for radar in self.coordinator.data.radars:
+                if str(radar["ID"]) == self._radar_id:
+                    self._apply(radar)
+                    break
         self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:

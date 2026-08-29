@@ -12,9 +12,16 @@ from homeassistant.const import (
     CONF_TYPE,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import LufopAPI, LufopAPIError, classify_type, is_speedless_carpool_lane
+from .api import (
+    LufopAPI,
+    LufopAPIError,
+    LufopAuthError,
+    classify_type,
+    is_speedless_carpool_lane,
+)
 from .const import (
     CONF_BLACKLIST,
     CONF_CORRIDOR_WIDTH,
@@ -98,7 +105,31 @@ class LufopCoordinator(DataUpdateCoordinator):
             update_interval=update_interval,
         )
 
+        # Named rather than left to the context DataUpdateCoordinator would
+        # otherwise read it from: ConfigEntryAuthFailed can only open the
+        # reauth dialog through the entry it belongs to.
+        self.config_entry = config_entry
         self.api = LufopAPI(hass, config_entry.data[CONF_API_KEY])
+
+    async def async_check_key(self) -> None:
+        """Verify the API key, and ask for a new one if it is rejected.
+
+        Once per setup rather than on every poll. The radar endpoint never
+        looks at the key at all (see LufopAPI.get_meta), so a key that has
+        been revoked would otherwise never be noticed - the polls would go
+        on succeeding until the day Lufop starts enforcing it, and then
+        fail with no explanation. The meta call costs no quota.
+
+        Anything that is not about the key - Lufop down, no network - is
+        deliberately let go: an outage is no reason to refuse to load, and
+        the poll that follows reports it as what it is.
+        """
+        try:
+            await self.api.get_meta()
+        except LufopAuthError as err:
+            raise ConfigEntryAuthFailed(f"Lufop rejected the API key: {err}") from err
+        except LufopAPIError as err:
+            _LOGGER.debug("Could not verify the Lufop API key: %s", err)
 
     async def async_update_data(self) -> LufopData:
         """Fetch radars and apply the configured filters."""
@@ -112,6 +143,10 @@ class LufopCoordinator(DataUpdateCoordinator):
                     radius_km=self.location["radius"] / 1000,
                     country=self.country,
                 )
+        except LufopAuthError as err:
+            # Not an outage to sit out: no number of retries makes a
+            # rejected key work again, so this asks for a new one instead.
+            raise ConfigEntryAuthFailed(f"Lufop rejected the API key: {err}") from err
         except LufopAPIError as err:
             raise UpdateFailed(f"Error communicating with Lufop API: {err}") from err
 

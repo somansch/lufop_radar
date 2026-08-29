@@ -2,6 +2,23 @@
 
 All notable changes to this integration are documented here.
 
+## v2.2.0
+
+### Added
+- **The API key is checked, and a rejected one asks for a new key.** Until now nothing ever verified it: Lufop's radar endpoint answers a wrong key, an empty key and no key at all with a plain `200` and real data - measured against the live API, for every country tried - so a key that had been revoked simply went on working, and any other failure was retried forever. Lufop's own `format=meta` call is the one place the key is looked at; it answers `401 {"error": "unauthorized"}` and, per Lufop's documentation, costs no quota. It now runs once per setup, and a rejection raises `ConfigEntryAuthFailed`, which opens Home Assistant's own **reauthentication** dialog. The new key is offered to Lufop before it is saved, so a typo is refused on the spot rather than stored. A `401`/`403` from the radar endpoint would do the same, for the day Lufop starts enforcing it there.
+
+### Fixed
+- **Radars stayed on the map through an outage.** A failed poll leaves the previous data in place, and the markers were not tied to the poll's success in any way - so every radar went on reporting its last known position as though it were current, while the count sensor correctly went unavailable. For an integration people use while driving, that was the wrong way round. Each radar is now a `CoordinatorEntity` and goes unavailable with its area, coming back with the next poll that succeeds.
+
+### Changed
+- **Entities are identified by the config entry rather than by its display name.** Every unique id used to contain the name, so renaming an area changed all of them at once and Home Assistant saw a completely new set of entities while the old ones stayed behind as orphans. Renaming an entry is safe now. The generated entity ids get tidier with it - `sensor.lufop_paris_total` rather than `sensor.lufop_radar_lufop_radar_paris_total`.
+- **The count sensor is a proper `SensorEntity`.** It sat on the sensor platform without being one: the value came from `state` instead of `native_value`, and `state_class` was put into the attributes rather than set on the entity. It reported correctly and even kept statistics that way, but none of it was the documented route, and the first change to Home Assistant's side of that would have broken it quietly.
+- **`hacs.json` declares the Home Assistant version it needs**, `2024.7.0`. The config flow imports `section` from `homeassistant.data_entry_flow`, which arrived in that release; below it, the flow raises `ImportError` on load with nothing explaining why.
+- The French translation was missing the "already configured" message the duplicate-name check raises, so a French-locale user typing a name twice was shown the raw key instead of a sentence. All three languages now carry the same set.
+- A radar's speed value is escaped before it goes into the generated marker image. It is Lufop's own data going into markup, and the encoding that followed treated a `<` that arrived in the value and a `<` belonging to the image exactly alike.
+- `LufopOptionsFlow` calls its parent's `__init__`, which is what sets the `_options` attribute the base class reads. Nothing asked for it yet, so nothing broke; the first line that did would have found an `AttributeError`.
+
+
 ## v2.1.2
 
 ### Fixed

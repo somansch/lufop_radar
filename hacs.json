@@ -2,5 +2,6 @@
   "name": "Lufop Radar",
   "render_readme": true,
   "zip_release": true,
-  "filename": "lufop_radar.zip"
+  "filename": "lufop_radar.zip",
+  "homeassistant": "2024.7.0"
 }

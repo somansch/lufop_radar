@@ -116,13 +116,24 @@
                         }
                     }
                 }
+            },
+            "reauth_confirm": {
+                "title": "Lufop Radar a besoin d'une nouvelle clé API",
+                "description": "Lufop n'accepte plus la clé API enregistrée pour « {name} ». Merci d'en saisir une valide.",
+                "data": {
+                    "api_key": "Clé API"
+                }
             }
         },
         "abort": {
-            "location_missing": "Merci de sélectionner une position. (déplace la carte)"
+            "location_missing": "Merci de sélectionner une position. (déplace la carte)",
+            "reauth_successful": "La nouvelle clé API a été enregistrée.",
+            "already_configured": "Lufop Radar est déjà configuré pour ce nom. Merci d'en choisir un autre."
         },
         "error": {
-            "route_needs_two_waypoints": "Un itinéraire nécessite au moins deux points de passage."
+            "route_needs_two_waypoints": "Un itinéraire nécessite au moins deux points de passage.",
+            "invalid_auth": "Lufop a refusé cette clé API.",
+            "cannot_connect": "L'API Lufop est injoignable. Vérifie la connexion et réessaie."
         }
     },
     "options": {

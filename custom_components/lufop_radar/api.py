@@ -24,6 +24,33 @@ class LufopAPIError(Exception):
     """Raised when the Lufop API can't be reached or returns something unusable."""
 
 
+class LufopAuthError(LufopAPIError):
+    """Raised when the API rejects the key itself.
+
+    Kept apart from every other failure because it is the one a person can
+    do something about, and the only one worth interrupting them for: it
+    becomes ConfigEntryAuthFailed, which asks for a new key rather than
+    retrying one that will never work again.
+    """
+
+
+async def _error_detail(response) -> str:
+    """Lufop's own words for why a request failed, where it gives them.
+
+    The error body (e.g. {"error": "country_not_allowed", "message": "..."})
+    explains far more than the bare status - free-plan country and quota
+    limits both arrive as 4xx and read identically otherwise.
+    """
+    detail = await response.text()
+    try:
+        body = await response.json(content_type=None)
+        if isinstance(body, dict) and "message" in body:
+            return body["message"]
+    except ValueError:
+        pass  # error body wasn't JSON - fall back to the raw text
+    return detail
+
+
 def classify_type(radar: dict) -> str:
     """Return one of "fixed"/"mobile"/"redlight" for a raw radar record.
 
@@ -78,6 +105,39 @@ class LufopAPI:
                 await asyncio.sleep(wait)
             _last_request_time = loop.time()
 
+    async def get_meta(self) -> dict:
+        """Ask the API about the key itself.
+
+        This is the only call that looks at the key at all. Measured
+        against the live API: the radar endpoint answers a wrong key, an
+        empty key and no key at all with a plain 200 and real data, for
+        every country tried. "format=meta" answers 401 with
+        {"error": "unauthorized", ...} instead, and per Lufop's own
+        documentation it costs no quota - so it is both the only way to
+        find out whether a key is any good and a free one.
+
+        Returns Lufop's document about the key: the plan it belongs to,
+        how many calls are left today, and which countries it may ask for.
+        """
+        await self._throttle()
+        params = {"key": self._api_key, "format": "meta"}
+        try:
+            async with self._session.get(BASE_URL, params=params) as response:
+                if response.status in (401, 403):
+                    raise LufopAuthError(await _error_detail(response))
+                if response.status >= 400:
+                    raise LufopAPIError(
+                        f"Lufop API returned HTTP {response.status} for the key "
+                        f"check: {await _error_detail(response)}"
+                    )
+                data = await response.json(content_type=None)
+        except ClientError as err:
+            raise LufopAPIError(f"Failed to reach Lufop API: {err}") from err
+
+        if not isinstance(data, dict):
+            raise LufopAPIError("Lufop API returned no information about the key")
+        return data
+
     async def get_radars(
         self, latitude: float, longitude: float, radius_km: float, country: str
     ) -> list[dict]:
@@ -106,19 +166,19 @@ class LufopAPI:
         try:
             async with self._session.get(BASE_URL, params=params) as response:
                 if response.status >= 400:
-                    # Lufop's error body (e.g. {"error": "country_not_allowed",
-                    # "message": "..."}) explains *why* far better than the
-                    # bare HTTP status - e.g. free-plan country/quota limits.
-                    detail = await response.text()
-                    try:
-                        body = await response.json(content_type=None)
-                        if isinstance(body, dict) and "message" in body:
-                            detail = body["message"]
-                    except ValueError:
-                        pass  # error body wasn't JSON - fall back to raw text
-                    raise LufopAPIError(
-                        f"Lufop API returned HTTP {response.status}: {detail}"
+                    message = (
+                        f"Lufop API returned HTTP {response.status}: "
+                        f"{await _error_detail(response)}"
                     )
+                    # A rejected key, told apart from a quota or a country
+                    # limit - both also 4xx, and both fixed by waiting or by
+                    # changing the entry rather than by a new key. This
+                    # endpoint does not check keys today (see get_meta), so
+                    # this is here for the day it starts, not because it has
+                    # ever been seen to fire.
+                    if response.status in (401, 403):
+                        raise LufopAuthError(message)
+                    raise LufopAPIError(message)
                 data = await response.json(content_type=None)
         except ClientError as err:
             raise LufopAPIError(f"Failed to reach Lufop API: {err}") from err
