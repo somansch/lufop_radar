@@ -304,3 +304,7 @@ If you find a problem, feel free to open an issue and I will do my best to help.
 ## Disclaimer
 
 This custom integration is not officially affiliated with Lufop. Data is provided by [Lufop](https://lufop.net) under a [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) license, which permits commercial use with attribution. Unlike some other radar data sources, Lufop's API is an intentional, documented developer offering rather than a reverse-engineered endpoint — but you still need your own API key, and should review [Lufop's terms](https://api.lufop.net/) for your specific use case.
+
+---
+
+[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/ou4lgpvlju)
