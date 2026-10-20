@@ -1,7 +1,7 @@
 # Lufop Radar Integration for Home Assistant 📡
 
 [![GitHub release](https://img.shields.io/github/v/release/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/releases/latest)
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
 [![License](https://img.shields.io/github/license/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/blob/main/LICENSE)
 
 ## Overview
@@ -201,16 +201,12 @@ The free plan is capped at 200 requests/day, 10 requests/minute, and 200 results
 
 ### HACS (recommended)
 
-1. Install HACS if you don't have it already
-2. Open HACS in Home Assistant
-3. Go to any of the sections (integrations, frontend, automation)
-4. Click on the 3 dots in the top right corner
-5. Select "Custom repositories"
-6. Add the following URL to the repository: `https://github.com/somansch/lufop_radar`
-7. Select "Integration" as category
-8. Click the "ADD" button
-9. Search for "Lufop Radar"
-10. Click the "Download" button
+Lufop Radar is part of the default HACS integration list:
+
+1. Open HACS in Home Assistant
+2. Search for "Lufop Radar"
+3. Click the "Download" button
+4. Restart HA
 
 ### Manual
 

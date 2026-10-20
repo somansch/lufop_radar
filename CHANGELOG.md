@@ -2,6 +2,11 @@
 
 All notable changes to this integration are documented here.
 
+## v2.2.1
+
+### Changed
+- **A wrong API key is caught on the form.** Setting up an area or a route saved the key unchecked, so a typo only turned up afterwards, as a prompt to enter the key again. The last step of both now asks Lufop about the key first - the same check the reauth step makes, which costs no quota - and when the key is refused, the form comes back with everything as it was typed, so only the key needs fixing. A Lufop that cannot be reached says so, instead of calling a good key wrong. **Configure** checks the key the same way when it is changed, and saves without asking when it is not, so the other settings can still be changed while Lufop is out of reach. Suggested in the HACS review.
+
 ## v2.2.0
 
 ### Added

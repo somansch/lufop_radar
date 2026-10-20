@@ -226,7 +226,9 @@
             }
         },
         "error": {
-            "route_needs_two_waypoints": "A route needs at least two waypoints."
+            "route_needs_two_waypoints": "A route needs at least two waypoints.",
+            "invalid_auth": "Lufop rejected this API key.",
+            "cannot_connect": "Could not reach the Lufop API. Check the connection and try again."
         }
     },
     "services": {

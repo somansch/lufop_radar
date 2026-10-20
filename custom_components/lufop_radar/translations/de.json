@@ -226,7 +226,9 @@
             }
         },
         "error": {
-            "route_needs_two_waypoints": "Eine Route benötigt mindestens zwei Wegpunkte."
+            "route_needs_two_waypoints": "Eine Route benötigt mindestens zwei Wegpunkte.",
+            "invalid_auth": "Lufop hat diesen API-Schlüssel abgelehnt.",
+            "cannot_connect": "Die Lufop-API war nicht erreichbar. Bitte Verbindung prüfen und erneut versuchen."
         }
     },
     "services": {

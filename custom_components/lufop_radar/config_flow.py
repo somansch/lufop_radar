@@ -188,6 +188,68 @@ def _route_options_schema(corridor_width, waypoints, api_key_default="", country
     )
 
 
+async def _key_error(hass, api_key: str) -> str | None:
+    """Lufop's word on a key, as a form error: "format=meta" is the one
+    call that looks at the key, and it costs no quota - the same check
+    reauth_confirm makes. None when the key is accepted."""
+    try:
+        await LufopAPI(hass, api_key).get_meta()
+    except LufopAuthError:
+        return "invalid_auth"
+    except LufopAPIError:
+        # Lufop unreachable rather than the key refused. Saying so keeps a
+        # person from throwing away a key that is fine.
+        return "cannot_connect"
+    return None
+
+
+def _optional_from_input(user_input: dict) -> dict:
+    """What the form's optional section held, to show it again as typed."""
+    return dict(user_input.get("optional") or {})
+
+
+def _area_form_as_typed(flow, user_input: dict, error: str):
+    """The area step again, as it was typed, with the key's error - so only
+    the key needs fixing."""
+    return flow.async_show_form(
+        step_id="area",
+        data_schema=_area_schema(
+            user_input[CONF_LOCATION],
+            api_key_default=user_input[CONF_API_KEY],
+            country_default=user_input[CONF_COUNTRY],
+            type_defaults=user_input[CONF_TYPE],
+            optional_defaults=_optional_from_input(user_input),
+            language=flow.hass.config.language,
+        ),
+        errors={"base": error},
+        last_step=True,
+    )
+
+
+def _route_options_form_as_typed(flow, user_input: dict, error: str):
+    """The route's last step again, as it was typed, with the key's error."""
+    sample_count = route_sample_count(flow._waypoints, flow._corridor_width)
+    return flow.async_show_form(
+        step_id="route_options",
+        data_schema=_route_options_schema(
+            flow._corridor_width,
+            flow._waypoints,
+            api_key_default=user_input[CONF_API_KEY],
+            country_default=user_input[CONF_COUNTRY],
+            type_defaults=user_input[CONF_TYPE],
+            optional_defaults=_optional_from_input(user_input),
+            language=flow.hass.config.language,
+        ),
+        description_placeholders={
+            "corridor_width": str(flow._corridor_width),
+            "sample_count": str(sample_count),
+            "suggested_interval": str(sample_count * DEFAULT_MINUTES_PER_ROUTE_REQUEST),
+        },
+        errors={"base": error},
+        last_step=True,
+    )
+
+
 class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -245,6 +307,10 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if CONF_LOCATION not in user_input:  # default location
                 return self.async_abort(reason="location_missing")
+
+            error = await _key_error(self.hass, user_input[CONF_API_KEY])
+            if error:
+                return _area_form_as_typed(self, user_input, error)
 
             return self.async_create_entry(title=f"Lufop {self._name}", data={
                 CONF_NAME: self._name,
@@ -306,6 +372,10 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if user_input.get("adjust_corridor"):
                 return await self.async_step_route_corridor()
+
+            error = await _key_error(self.hass, user_input[CONF_API_KEY])
+            if error:
+                return _route_options_form_as_typed(self, user_input, error)
 
             return self.async_create_entry(title=f"Lufop {self._name}", data={
                 CONF_NAME: self._name,
@@ -446,10 +516,23 @@ class LufopOptionsFlow(OptionsFlowWithConfigEntry):
             last_step=False,
         )
 
+    async def _changed_key_error(self, api_key: str) -> str | None:
+        """The key is checked when it was changed. The saved one was
+        checked when it was given, and the coordinator checks it at every
+        start - asking again would only keep the other settings from being
+        saved while Lufop cannot be reached."""
+        if api_key == self.config_entry.data.get(CONF_API_KEY):
+            return None
+        return await _key_error(self.hass, api_key)
+
     async def async_step_area(self, user_input=None):
         if user_input is not None:
             if CONF_LOCATION not in user_input:  # default location
                 user_input[CONF_LOCATION] = self.config_entry.data.get(CONF_LOCATION)
+
+            error = await self._changed_key_error(user_input[CONF_API_KEY])
+            if error:
+                return _area_form_as_typed(self, user_input, error)
 
             data = {
                 CONF_NAME: self.config_entry.data.get(CONF_NAME),
@@ -521,6 +604,10 @@ class LufopOptionsFlow(OptionsFlowWithConfigEntry):
         if user_input is not None:
             if user_input.get("adjust_corridor"):
                 return await self.async_step_route_corridor()
+
+            error = await self._changed_key_error(user_input[CONF_API_KEY])
+            if error:
+                return _route_options_form_as_typed(self, user_input, error)
 
             data = {
                 CONF_NAME: self.config_entry.data.get(CONF_NAME),

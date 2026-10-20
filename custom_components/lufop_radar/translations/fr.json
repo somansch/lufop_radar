@@ -226,7 +226,9 @@
             }
         },
         "error": {
-            "route_needs_two_waypoints": "Un itinéraire nécessite au moins deux points de passage."
+            "route_needs_two_waypoints": "Un itinéraire nécessite au moins deux points de passage.",
+            "invalid_auth": "Lufop a refusé cette clé API.",
+            "cannot_connect": "L'API Lufop est injoignable. Vérifie la connexion et réessaie."
         }
     },
     "services": {
