@@ -2,6 +2,10 @@
 
 All notable changes to this integration are documented here.
 
+## v2.2.2
+
+**Lufop Radar is no longer developed.** Its successor is [TomTom](https://github.com/somansch/tomtom), with Lufop's speed cameras built in and TomTom's own jams, closures, roadworks, accidents and road weather in more than 70 countries, blitzer.de's cameras, a route planner on the card and 30 languages. Your Lufop key works there too. Lufop Radar keeps working as it is, but gets no new features.
+
 ## v2.2.1
 
 ### Changed

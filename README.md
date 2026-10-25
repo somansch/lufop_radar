@@ -4,6 +4,8 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
 [![License](https://img.shields.io/github/license/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/blob/main/LICENSE)
 
+> **No longer developed.** Its successor is **[TomTom](https://github.com/somansch/tomtom)**, with Lufop's speed cameras built in and TomTom's own jams, closures, roadworks, accidents and road weather in more than 70 countries, blitzer.de's cameras, a route planner on the card and 30 languages. Your Lufop key works there too. Lufop Radar keeps working as it is, but gets no new features.
+
 ## Overview
 
 This Home Assistant custom integration reports fixed speed cameras, mobile radar checks, and red light cameras near a configured location, using the [Lufop](https://lufop.net) radar database — a free, officially documented API covering 20+ countries. Unlike some other radar data sources, Lufop's API is meant to be used by third-party developers: it just requires a free, personal API key.
