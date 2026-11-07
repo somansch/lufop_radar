@@ -1,8 +1,12 @@
 # Lufop Radar Integration for Home Assistant 📡
 
-[![GitHub release](https://img.shields.io/github/v/release/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/releases/latest)
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
-[![License](https://img.shields.io/github/license/somansch/lufop_radar)](https://github.com/somansch/lufop_radar/blob/main/LICENSE)
+[![Marketplace (HACS)](https://img.shields.io/badge/Marketplace%20%28HACS%29-Default-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=somansch&repository=lufop_radar&category=Integration)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.7%2B-41BDF5?style=for-the-badge&logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
+[![License](https://img.shields.io/github/license/somansch/lufop_radar?style=for-the-badge)](https://github.com/somansch/lufop_radar/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/somansch/lufop_radar/total?style=for-the-badge&label=Downloads)](https://github.com/somansch/lufop_radar/releases)
+[![Downloads latest](https://img.shields.io/github/downloads/somansch/lufop_radar/latest/total?style=for-the-badge&label=Downloads%20latest)](https://github.com/somansch/lufop_radar/releases/latest)
+[![Version](https://img.shields.io/github/v/release/somansch/lufop_radar?style=for-the-badge&label=Version&color=e83ef7)](https://github.com/somansch/lufop_radar/releases/latest)
+[![Buy me a coffee](https://img.shields.io/badge/-Buy%20me%20a%20%E2%98%95%2F%F0%9F%8D%BA-ff6b6b?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/ou4lgpvlju)
 
 > **No longer developed.** Its successor is **[TomTom](https://github.com/somansch/tomtom)**, with Lufop's speed cameras built in and TomTom's own jams, closures, roadworks, accidents and road weather in more than 70 countries, blitzer.de's cameras, a route planner on the card and 30 languages. Your Lufop key works there too. Lufop Radar keeps working as it is, but gets no new features.
 
@@ -201,14 +205,15 @@ The free plan is capped at 200 requests/day, 10 requests/minute, and 200 results
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (HACS)
 
-Lufop Radar is part of the default HACS integration list:
+The recommended way. Lufop Radar is in the default list of the Marketplace - the store Home Assistant 2026.11 ships, HACS on earlier versions - so there is no repository to add:
 
-1. Open HACS in Home Assistant
-2. Search for "Lufop Radar"
-3. Click the "Download" button
-4. Restart HA
+[![Open Marketplace repository on My Home Assistant](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=somansch&repository=lufop_radar&category=Integration)
+
+1. Click the button above, or open Marketplace (HACS) in Home Assistant and search for "Lufop Radar"
+2. Click **Download**
+3. Restart Home Assistant
 
 ### Manual
 
