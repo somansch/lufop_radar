@@ -1,7 +1,7 @@
 # Lufop Radar Integration for Home Assistant 📡
 
 [![Marketplace (HACS)](https://img.shields.io/badge/Marketplace%20%28HACS%29-Default-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=somansch&repository=lufop_radar&category=Integration)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.7%2B-41BDF5?style=for-the-badge&logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.10%2B-41BDF5?style=for-the-badge&logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/somansch/lufop_radar?style=for-the-badge)](https://github.com/somansch/lufop_radar/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/somansch/lufop_radar/total?style=for-the-badge&label=Downloads)](https://github.com/somansch/lufop_radar/releases)
 [![Downloads latest](https://img.shields.io/github/downloads/somansch/lufop_radar/latest/total?style=for-the-badge&label=Downloads%20latest)](https://github.com/somansch/lufop_radar/releases/latest)
@@ -43,7 +43,7 @@ Use `geo_location_sources: [all]` (or list every `lufop_radar_<area>` source) to
 
 <img src="https://raw.githubusercontent.com/somansch/lufop_radar/main/docs/markdown-card-example.png" alt="Markdown card listing Paris-area radars sorted by distance" width="500">
 
-The list is sorted by distance to the area's center point, closest first, each entry linking to its Lufop detail page:
+The list is sorted by distance to the area's center point, closest first, each entry linking to its Lufop detail page. The distance is in your instance's unit - write `mi` where the example says `km` if it measures in miles:
 
 <details>
 <summary>YAML</summary>
@@ -98,7 +98,7 @@ The list is sorted by distance to the area's center point, closest first, each e
 
 #### New radars anywhere in the integration's configured area/route
 
-Every area/route fires a **`lufop_radar_new_radar`** event the moment a genuinely new radar is detected on one of its polls (or an on-demand `lufop_radar.refresh`) - never for a radar already known from an earlier poll, and never right after Home Assistant starts (that first fetch is just "here's what's already there", not a new detection). Trigger an automation directly off it, no zone setup required:
+Every area/route fires a **`lufop_radar_new_radar`** event the moment a genuinely new radar is detected on one of its polls (or an on-demand `lufop_radar.refresh`) - never for a radar already known from an earlier poll, and never on the first fetch after Home Assistant starts or the entry is reloaded (that one is just "here's what's already there", not a new detection). For an entry that only fetches on demand, that first fetch is its first `lufop_radar.refresh`. A radar that only moves up into the list because another one left it - see **Maximum number of radars** - was in range before and is not announced either. Trigger an automation directly off it, no zone setup required:
 
 <details>
 <summary>YAML</summary>
@@ -115,7 +115,7 @@ automation:
       - action: notify.mobile_app_your_mobile
         data:
           message: >-
-            Neuer Radar: {{ trigger.event.data.street }},
+            New radar: {{ trigger.event.data.street }},
             {{ trigger.event.data.city }}
             ({{ trigger.event.data.speed }} km/h)
 ```
@@ -134,16 +134,16 @@ Want a proximity-based notification instead - e.g. only once a radar is inside y
 ```yaml
 automation:
   - alias: "New radar in zone"
-    trigger:
-      - platform: geolocation
+    triggers:
+      - trigger: geo_location
         source: lufop_radar_paris
         zone: zone.home
         event: enter
-    action:
-      - service: notify.mobile_app_your_mobile
+    actions:
+      - action: notify.mobile_app_your_mobile
         data:
           message: >-
-            Neuer Radar: {{ state_attr(trigger.entity_id, 'street') }},
+            New radar: {{ state_attr(trigger.entity_id, 'street') }},
             {{ state_attr(trigger.entity_id, 'city') }}
             ({{ state_attr(trigger.entity_id, 'speed') }} km/h)
 ```
@@ -154,7 +154,7 @@ Since a stationary (`fixed`) radar's position never changes after creation, "ent
 
 ### On-demand refresh & automation example
 
-Every area/route has an **Update interval** (see the tables above); setting it to **0** turns off automatic polling entirely, so it only ever refreshes when *you* ask it to - via the **`lufop_radar.refresh`** action ("Lufop Refresh" in the UI). Call it targeting the area/route you want, and it immediately fetches the latest radars, creates/updates/removes that entry's `geo_location` entities exactly like a normal scheduled poll would, and (optionally) returns the radars found so an automation can use them directly.
+Every area/route has an **Update interval** (see [Configuration](#configuration) below); setting it to **0** turns off automatic polling entirely, so it only ever refreshes when *you* ask it to - via the **`lufop_radar.refresh`** action ("Lufop Refresh" in the UI). Call it targeting the area/route you want, and it immediately fetches the latest radars, creates/updates/removes that entry's `geo_location` entities exactly like a normal scheduled poll would, and (optionally) returns the radars found - the same ones the entities show, no more than the entry's maximum - so an automation can use them directly. A refresh that fails raises an error naming the reason, as does one for an entry that is not loaded, rather than answering with the list from before.
 
 A common use case: a route for your commute, set to manual-only, refreshed and sent to your phone the moment you actually leave home - instead of polling every few minutes all day for a route you only drive once or twice:
 
@@ -199,11 +199,13 @@ Lufop requires a personal API key before you can use the integration:
 2. Once approved, you'll receive your key and access to a usage dashboard.
 3. Enter that key in the config flow below.
 
-The free plan is capped at 200 requests/day, 10 requests/minute, and 200 results per request, and doesn't support querying all countries at once - each request is scoped to a single country. This integration is built around those limits: requests are automatically spaced out (at least ~6.5 seconds apart across every configured area/route sharing the API key) to stay under the per-minute cap, and each area or route polls only often enough to stay comfortably under 200 requests/day - by default every 10 minutes for an area, or longer for a route (proportional to how many points it needs to sample). Adding more areas/routes on the same key shares that same daily budget, so the safety margin shrinks with each additional entry.
+The free plan is capped at 200 requests/day, 10 requests/minute, and 200 results per request, and doesn't support querying all countries at once - each request is scoped to a single country. The per-minute cap is kept for you: requests are spaced out, at least ~6.5 seconds apart across every configured area and route. The daily cap is yours to keep, with the **Update interval**. The suggested defaults fit **one** entry: an area every 10 minutes is 144 requests a day, and a route's default - 8 minutes per point it has to sample - is 180. Two entries on their defaults are already over 200, so with more than one, lengthen the intervals until the sum fits (1440 divided by the interval, times the requests per poll, for each entry), or set an entry to **0** and refresh it on demand. Every restart and every reload of an entry costs one more poll.
 
 **The free plan only covers France, Belgium, and Switzerland** - selecting any other country (even though it's offered in the picker, for accounts on a paid plan) fails with a "country not allowed" error from Lufop. Check your plan's allowed countries on your [Lufop dashboard](https://api.lufop.net/) before configuring an area, or upgrade if you need a country outside those three.
 
 ## Installation
+
+Needs Home Assistant **2024.10** or newer.
 
 ### Marketplace (HACS)
 
@@ -244,17 +246,17 @@ The config wizard is available in English, German, and French, matching whicheve
 
 | Field | Description |
 |---|---|
-| **Display name** | Freely chosen name for this area. It names the entities it creates and is the `area` attribute on every `geo_location` entity. Renaming later is safe: entities are identified by the config entry, not by its name. |
-| **Section** | Drag the map to the center point you want to monitor and adjust the radius circle. All radars within this radius are reported. |
+| **Display name** | Freely chosen name for this area. It names the entities it creates, is the `area` attribute on every `geo_location` entity and makes up their `source`. It is set once: **Configure** does not offer it, and renaming the entry in Home Assistant changes the entry's title only. For another name, add the area again and delete the old entry. |
+| **Section** | Drag the map to the center point you want to monitor and adjust the radius circle. The radars within this radius are reported - Lufop answers for a somewhat larger area, and what lies outside the circle is left out. |
 | **API key** | Your personal Lufop API key (see [Getting an API key](#getting-an-api-key)). |
-| **Country** | The country to query, shown by name and sorted alphabetically (Lufop scopes each request to a single country on the free plan). |
+| **Country** | The country to query, shown by name and sorted alphabetically in your language (Lufop scopes each request to a single country on the free plan). |
 | **Types** – Fixed | Include permanently installed fixed speed cameras. |
 | **Types** – Mobile | Include mobile radar checks. In countries without a separate "mobile" listing (e.g. France), this also includes Lufop's "Chantier" entries - mobile radar units deployed in roadwork zones, not the roadwork itself. |
 | **Types** – Red light | Include red light cameras. |
-| **Optional settings** – Maximum number of radars | Upper limit on how many radars are tracked at once (default 9). |
+| **Optional settings** – Maximum number of radars | Upper limit on how many radars are tracked at once (default 9, at least 1). With more in range, an area keeps the ones nearest its center, a route the first ones along the way. |
 | **Optional settings** – Update interval (minutes, 0 = manual only) | How often this area polls Lufop. Defaults to 10 minutes; **0** disables automatic polling entirely - use the [`lufop_radar.refresh` service](#on-demand-refresh--automation-example) instead. Not a hard quota-safe limit: see the requests/day math above before lowering it, especially with several areas/routes on one key. |
 | **Optional settings** – Whitelist (comma-separated city names) | Comma-separated list of city names to keep, case-insensitive exact match (e.g. `Strasbourg,Colmar`). Empty (the default) means no filtering — every city is kept. |
-| **Optional settings** – Blacklist | Comma-separated list of radar IDs to always exclude, regardless of the whitelist (e.g. `12345,67890`). The ID is the radar's `id` attribute. |
+| **Optional settings** – Blacklist (comma-separated radar IDs) | Comma-separated list of radar IDs to always exclude, regardless of the whitelist (e.g. `12345,67890`). The ID is the radar's `id` attribute. |
 
 #### Route (waypoints)
 
@@ -263,14 +265,14 @@ For a commute or a regular trip, "area" search would need an impractically large
 1. Move the map to your route's starting point, then leave **Add another waypoint** checked and continue — one map screen per waypoint.
 2. Add a waypoint at every place the route bends noticeably. Radars are searched in a corridor along the *straight* line between consecutive waypoints, not along actual roads (there's no routing engine involved), so a long straight line across a curve will miss radars on the curve or search too widely off to the side.
 3. Uncheck **Add another waypoint** once you've placed the last one (at least 2 total).
-4. Set the **Corridor width (meters)** — how far to each side of the route line to search (default 300 m).
+4. Set the **Corridor width (meters)** — how far to each side of the route line to search (default 300 m). A radar further from the line than that is left out.
 5. The next screen shows how many requests that corridor width needs per poll (see below) and asks for the API key, country, radar-type, and optional-settings fields from the table above. Not happy with the request count? Enable **Adjust corridor width instead of saving** to jump back to step 4 without redrawing the route, then continue again once it looks right.
 
-Internally, the integration interpolates extra sample points along each straight segment (spaced one corridor-width apart) and queries Lufop around every one of them, then merges and deduplicates the results by radar ID. So the number of requests a poll needs depends on both the corridor width *and* the distance between waypoints, not just the number of waypoints - e.g. two waypoints 2 km apart with a 100 m corridor interpolates to 21 sample points (`int(2000 // 100) + 1`), i.e. 21 requests per poll. The wizard shows this exact count, plus the resulting suggested **Update interval**, for your own route before you save.
+Internally, the integration interpolates extra sample points along each straight segment (spaced one corridor-width apart, in Lufop's own steps of 100 m - a 50 m corridor is asked for every 100 m) and queries Lufop around every one of them, then merges and deduplicates the results by radar ID. So the number of requests a poll needs depends on both the corridor width *and* the distance between waypoints, not just the number of waypoints - e.g. two waypoints 2 km apart with a 100 m corridor interpolates to 21 sample points (`int(2000 // 100) + 1`), i.e. 21 requests per poll. The wizard shows this exact count, plus the resulting suggested **Update interval**, for your own route before you save.
 
 Editing a route via **Configure** first asks **what to edit**:
 
-- **Edit waypoints** — steps you through every already-saved waypoint one at a time (move the map to reposition it, or check **Remove this waypoint** to drop it), then lets you append further new waypoints to the end. The route isn't discarded and redrawn from scratch.
+- **Edit waypoints** — steps you through every already-saved waypoint one at a time (move the map to reposition it, or check **Remove this waypoint** to drop it), then lets you append further new waypoints to the end - or uncheck **Add another waypoint** without moving the map to keep the route as it is. The route isn't discarded and redrawn from scratch.
 - **Edit search settings** — jumps straight to corridor width, API key, country, radar types, and the optional settings, without touching the waypoints at all.
 
 Every field above can be changed afterwards: go to **Settings → Devices & Services**, find the entry for the area/route you want to change, and click **Configure**.
@@ -281,14 +283,14 @@ Each area or route produces the following entities:
 
 | Entity | Description |
 |---|---|
-| Total count sensor (`sensor.*`) | Number of currently reported radars (capped at "Maximum number of radars"). Its attributes break the count down per city. |
+| Total count sensor (`sensor.*`) | Number of currently reported radars (capped at "Maximum number of radars"). Its attributes break that same count down per city. |
 | One `geo_location` entity per radar (`geo_location.*`) | Created and removed dynamically as radars appear and disappear from the live data — there's no fixed pool of entities. |
 
 Attributes on each radar's `geo_location` entity:
 
 | Attribute | Description |
 |---|---|
-| `state` | Distance in km (or miles) to the nearest reference point — the area's center point in area mode, or the nearest of the route's waypoints in route mode. |
+| `state` | Distance in km - in miles on an instance that measures in them, with `unit_of_measurement` saying which - to the nearest reference point — the area's center point in area mode, or the nearest of the route's waypoints in route mode. |
 | `source` | `lufop_radar_<area>`, e.g. `lufop_radar_strasbourg`. Lets a map card select one specific area via `geo_location_sources`. |
 | `area` | The display name you gave this area. |
 | `type` | One of `fixed`, `mobile`, or `redlight`. |

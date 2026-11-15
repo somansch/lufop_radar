@@ -25,7 +25,6 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     CONF_WAYPOINTS,
     COUNTRIES,
-    COUNTRY_ORDER_BY_LANGUAGE,
     DEFAULT_AREA_UPDATE_INTERVAL,
     DEFAULT_CORRIDOR_WIDTH,
     DEFAULT_MINUTES_PER_ROUTE_REQUEST,
@@ -38,20 +37,30 @@ from .route import route_sample_points
 _LOGGER = logging.getLogger(__name__)
 
 
-def _country_selector(language: str = "en"):
-    # The option *order* has to be picked here in Python - the frontend
-    # renders each option's translated label via translation_key, but never
-    # re-sorts the list itself, so an unordered/English-ordered list would
-    # look "wrong" in every other language.
-    options = COUNTRY_ORDER_BY_LANGUAGE.get(language, COUNTRIES)
+def _country_selector():
+    # "sort" has the frontend order the options by their translated labels,
+    # in the language of whoever is looking at the form. The order used to
+    # be picked here from the server's language, which is not the user's.
     return selector(
         {
             "select": {
-                "options": options,
+                "options": COUNTRIES,
                 "translation_key": "country",
                 "mode": "dropdown",
+                "sort": True,
             }
         }
+    )
+
+
+# Masked while it is typed and when a saved one is shown again.
+_API_KEY_SELECTOR = selector({"text": {"type": "password"}})
+
+
+def _same_point(a: dict, b: dict) -> bool:
+    return (
+        abs(a["latitude"] - b["latitude"]) < 1e-6
+        and abs(a["longitude"] - b["longitude"]) < 1e-6
     )
 
 
@@ -76,7 +85,11 @@ def _optional_section(defaults: dict | None = None, update_interval_default: int
     return section(
         vol.Schema(
             {
-                vol.Required(CONF_COUNT, default=defaults.get(CONF_COUNT, 9)): int,
+                # At least one: -1 used to be taken, and cut the last radar
+                # off the list while the sensor showed -1.
+                vol.Required(CONF_COUNT, default=max(1, defaults.get(CONF_COUNT) or 9)): vol.All(
+                    vol.Coerce(int), vol.Range(min=1)
+                ),
                 # 0 = no automatic polling at all - rely on the "refresh"
                 # service instead (e.g. from an automation). Any other value
                 # is minutes between polls; the caller-supplied default is
@@ -130,12 +143,12 @@ def _waypoint_review_schema(default_location: dict):
     )
 
 
-def _area_schema(location_default, api_key_default="", country_default=None, type_defaults=None, optional_defaults=None, language="en"):
+def _area_schema(location_default, api_key_default="", country_default=None, type_defaults=None, optional_defaults=None):
     return vol.Schema(
         {
             vol.Required(CONF_LOCATION, default=location_default): selector({"location": {"radius": True}}),
-            vol.Required(CONF_API_KEY, default=api_key_default): str,
-            vol.Required(CONF_COUNTRY, default=country_default): _country_selector(language),
+            vol.Required(CONF_API_KEY, default=api_key_default): _API_KEY_SELECTOR,
+            vol.Required(CONF_COUNTRY, default=country_default): _country_selector(),
             vol.Required(CONF_TYPE): _type_section(type_defaults),
             vol.Required("optional"): _optional_section(optional_defaults),
         }
@@ -167,7 +180,7 @@ def route_sample_count(waypoints, corridor_width) -> int:
     return len(route_sample_points(waypoints, corridor_width)) if waypoints else 1
 
 
-def _route_options_schema(corridor_width, waypoints, api_key_default="", country_default=None, type_defaults=None, optional_defaults=None, language="en"):
+def _route_options_schema(corridor_width, waypoints, api_key_default="", country_default=None, type_defaults=None, optional_defaults=None):
     # corridor_width is fixed by the time this step is shown (chosen on the
     # preceding "route_corridor" step), so this default is always accurate
     # for it - if it needs revisiting, "adjust_corridor" below loops back.
@@ -175,8 +188,8 @@ def _route_options_schema(corridor_width, waypoints, api_key_default="", country
     update_interval_default = sample_count * DEFAULT_MINUTES_PER_ROUTE_REQUEST
     return vol.Schema(
         {
-            vol.Required(CONF_API_KEY, default=api_key_default): str,
-            vol.Required(CONF_COUNTRY, default=country_default): _country_selector(language),
+            vol.Required(CONF_API_KEY, default=api_key_default): _API_KEY_SELECTOR,
+            vol.Required(CONF_COUNTRY, default=country_default): _country_selector(),
             vol.Required(CONF_TYPE): _type_section(type_defaults),
             vol.Required("optional"): _optional_section(optional_defaults, update_interval_default),
             # Loops back to the "route_corridor" step instead of saving,
@@ -219,7 +232,6 @@ def _area_form_as_typed(flow, user_input: dict, error: str):
             country_default=user_input[CONF_COUNTRY],
             type_defaults=user_input[CONF_TYPE],
             optional_defaults=_optional_from_input(user_input),
-            language=flow.hass.config.language,
         ),
         errors={"base": error},
         last_step=True,
@@ -238,7 +250,6 @@ def _route_options_form_as_typed(flow, user_input: dict, error: str):
             country_default=user_input[CONF_COUNTRY],
             type_defaults=user_input[CONF_TYPE],
             optional_defaults=_optional_from_input(user_input),
-            language=flow.hass.config.language,
         ),
         description_placeholders={
             "corridor_width": str(flow._corridor_width),
@@ -329,16 +340,20 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
             "latitude": self.hass.config.latitude,
             "longitude": self.hass.config.longitude,
             "radius": 1000,
-        }, language=self.hass.config.language)
+        })
         return self.async_show_form(step_id="area", data_schema=data_schema, last_step=True)
 
     async def async_step_waypoint(self, user_input=None):
         errors = {}
         if user_input is not None:
-            self._waypoints.append({
+            point = {
                 "latitude": user_input[CONF_LOCATION]["latitude"],
                 "longitude": user_input[CONF_LOCATION]["longitude"],
-            })
+            }
+            # The form opens on the last waypoint: the same point again is
+            # the map left where it was, not a waypoint.
+            if not (self._waypoints and _same_point(self._waypoints[-1], point)):
+                self._waypoints.append(point)
             if not user_input["add_another"]:
                 if len(self._waypoints) < 2:
                     errors["base"] = "route_needs_two_waypoints"
@@ -394,9 +409,7 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
         sample_count = route_sample_count(self._waypoints, self._corridor_width)
         return self.async_show_form(
             step_id="route_options",
-            data_schema=_route_options_schema(
-                self._corridor_width, self._waypoints, language=self.hass.config.language
-            ),
+            data_schema=_route_options_schema(self._corridor_width, self._waypoints),
             description_placeholders={
                 "corridor_width": str(self._corridor_width),
                 "sample_count": str(sample_count),
@@ -437,7 +450,7 @@ class LufopConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            data_schema=vol.Schema({vol.Required(CONF_API_KEY): _API_KEY_SELECTOR}),
             description_placeholders={"name": entry.data.get(CONF_NAME, "")},
             errors=errors,
         )
@@ -547,7 +560,10 @@ class LufopOptionsFlow(OptionsFlowWithConfigEntry):
                 CONF_BLACKLIST: user_input["optional"].get(CONF_BLACKLIST, ""),
             }
             self.hass.config_entries.async_update_entry(self._config_entry, data=data)
-            return self.async_create_entry(title=self._config_entry.title, data=data)
+            # Nothing under "options": the data above is where it lives. A
+            # copy there was a second write - a second reload - and kept the
+            # API key twice.
+            return self.async_create_entry(title=self._config_entry.title, data={})
 
         data_schema = _area_schema(
             self.config_entry.data.get(CONF_LOCATION),
@@ -560,17 +576,20 @@ class LufopOptionsFlow(OptionsFlowWithConfigEntry):
                 CONF_SELECTOR: self.config_entry.data.get(CONF_SELECTOR, ""),
                 CONF_BLACKLIST: self.config_entry.data.get(CONF_BLACKLIST, ""),
             },
-            language=self.hass.config.language,
         )
         return self.async_show_form(step_id="area", data_schema=data_schema, last_step=True)
 
     async def async_step_waypoint(self, user_input=None):
         errors = {}
         if user_input is not None:
-            self._waypoints.append({
+            point = {
                 "latitude": user_input[CONF_LOCATION]["latitude"],
                 "longitude": user_input[CONF_LOCATION]["longitude"],
-            })
+            }
+            # The form opens on the last waypoint: the same point again is
+            # the map left where it was, not a waypoint.
+            if not (self._waypoints and _same_point(self._waypoints[-1], point)):
+                self._waypoints.append(point)
             if not user_input["add_another"]:
                 if len(self._waypoints) < 2:
                     errors["base"] = "route_needs_two_waypoints"
@@ -623,7 +642,10 @@ class LufopOptionsFlow(OptionsFlowWithConfigEntry):
                 CONF_BLACKLIST: user_input["optional"].get(CONF_BLACKLIST, ""),
             }
             self.hass.config_entries.async_update_entry(self._config_entry, data=data)
-            return self.async_create_entry(title=self._config_entry.title, data=data)
+            # Nothing under "options": the data above is where it lives. A
+            # copy there was a second write - a second reload - and kept the
+            # API key twice.
+            return self.async_create_entry(title=self._config_entry.title, data={})
 
         sample_count = route_sample_count(self._waypoints, self._corridor_width)
         return self.async_show_form(
@@ -648,7 +670,6 @@ class LufopOptionsFlow(OptionsFlowWithConfigEntry):
                         if CONF_UPDATE_INTERVAL in self.config_entry.data else {}
                     ),
                 },
-                language=self.hass.config.language,
             ),
             description_placeholders={
                 "corridor_width": str(self._corridor_width),

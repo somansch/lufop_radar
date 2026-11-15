@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 import logging
 
@@ -14,6 +14,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import location as location_util
 
 from .api import (
     LufopAPI,
@@ -34,16 +35,35 @@ from .const import (
     SEARCH_MODE_ROUTE,
     UPDATE_INTERVAL_MANUAL,
 )
-from .route import route_sample_points
+from .route import distance_to_route, route_sample_points
 
 _LOGGER = logging.getLogger(__name__)
 
 
+def _usable(radar) -> bool:
+    """A record with an ID and a position. One without them used to stop
+    the whole entry's markers from being brought up to date."""
+    try:
+        float(radar["lat"])
+        float(radar["lng"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return radar.get("ID") not in (None, "")
+
+
 @dataclass
 class LufopData:
-    """Holds the current set of radars for this area."""
+    """Holds the current set of radars for this area.
+
+    "radars" is what the entry shows: filtered, nearest first, and no more
+    than its maximum - the markers, the count sensor and the refresh
+    action's answer are all this one list. "in_range" is every radar that
+    passed the filters, shown or not, by ID: a radar that only moves up into
+    the list because another one left it was there before, and is not new.
+    """
 
     radars: list[dict]
+    in_range: frozenset[str] = field(default_factory=frozenset)
 
 
 class LufopCoordinator(DataUpdateCoordinator):
@@ -69,7 +89,13 @@ class LufopCoordinator(DataUpdateCoordinator):
         self.whitelist = {
             city.strip().lower() for city in whitelist_raw.split(",") if city.strip()
         }
-        self.sensorcount = config_entry.data[CONF_COUNT]
+        # Never below zero: a negative count, which the form used to take,
+        # sliced the list from its end.
+        self.sensorcount = max(0, config_entry.data[CONF_COUNT])
+        # Whether Lufop has been asked at all since this entry was set up.
+        # An entry that only fetches on demand starts with an empty list that
+        # says nothing about what is out there - see geo_location.py.
+        self.fetched = False
         self.types = config_entry.data[CONF_TYPE]
 
         blacklist_raw = config_entry.data.get(CONF_BLACKLIST, "")
@@ -161,6 +187,7 @@ class LufopCoordinator(DataUpdateCoordinator):
             )
             if enabled
         }
+        radars = [r for r in radars if _usable(r)]
         radars = [r for r in radars if classify_type(r) in wanted_types]
         radars = [r for r in radars if not is_speedless_carpool_lane(r)]
 
@@ -173,7 +200,41 @@ class LufopCoordinator(DataUpdateCoordinator):
         if self.blacklist:
             radars = [r for r in radars if str(r.get("ID")) not in self.blacklist]
 
-        return LufopData(radars=radars)
+        radars = self._within_reach(radars)
+
+        self.fetched = True
+        return LufopData(
+            radars=radars[: self.sensorcount],
+            in_range=frozenset(str(r["ID"]) for r in radars),
+        )
+
+    def _within_reach(self, radars: list[dict]) -> list[dict]:
+        """What really lies in the circle or the corridor, nearest first.
+
+        Lufop's margin is not a circle of that radius - asked for 3 km, it
+        answered with a radar 3.8 km away - and its answer comes in no order
+        of distance. Cutting that list at the maximum kept whichever radars
+        happened to come first, some of them outside what was drawn.
+
+        A route keeps the order of the way: its radars arrive stretch by
+        stretch, from the first waypoint to the last.
+        """
+        if self.search_mode == SEARCH_MODE_ROUTE:
+            return [
+                r for r in radars
+                if distance_to_route(self.waypoints, float(r["lat"]), float(r["lng"]))
+                <= self.corridor_width
+            ]
+
+        def from_centre(radar: dict) -> float:
+            metres = location_util.distance(
+                self.location["latitude"], self.location["longitude"],
+                float(radar["lat"]), float(radar["lng"]),
+            )
+            return float("inf") if metres is None else metres
+
+        measured = sorted(((from_centre(r), r) for r in radars), key=lambda pair: pair[0])
+        return [r for metres, r in measured if metres <= self.location["radius"]]
 
     def _route_sample_points(self):
         return route_sample_points(self.waypoints, self.corridor_width)

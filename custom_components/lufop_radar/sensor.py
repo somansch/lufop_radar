@@ -55,10 +55,8 @@ class LufopTotalSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        radar_count = len(self.coordinator.data.radars)
-        if radar_count > self.coordinator.sensorcount:
-            return self.coordinator.sensorcount
-        return radar_count
+        # The list is cut at the entry's maximum where it is made.
+        return len(self.coordinator.data.radars)
 
     @property
     def extra_state_attributes(self):

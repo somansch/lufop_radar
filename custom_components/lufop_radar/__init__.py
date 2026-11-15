@@ -9,7 +9,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import classify_type
@@ -22,6 +24,8 @@ PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.GEO_LOCATION]
 
 _REFRESH_SCHEMA = vol.Schema({vol.Required(ATTR_CONFIG_ENTRY_ID): str})
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 @dataclass
 class RuntimeData:
@@ -31,9 +35,32 @@ class RuntimeData:
     cancel_update_listener: Callable
 
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the refresh action, once for the domain.
+
+    Here rather than with the first entry: an automation that calls it while
+    the only entry is still waiting for Lufop should be told that, not that
+    the action does not exist.
+    """
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REFRESH,
+        _async_handle_refresh,
+        schema=_REFRESH_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up Lufop Radar from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+
+    if config_entry.options:
+        # Saving the settings used to leave a second copy of them here, the
+        # API key included. Nothing reads it; before the update listener
+        # below exists, so that clearing it reloads nothing.
+        hass.config_entries.async_update_entry(config_entry, options={})
 
     coordinator = LufopCoordinator(hass, config_entry)
 
@@ -59,17 +86,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
 
-    # Registered once for the domain, not per entry - guarded since
-    # async_setup_entry runs again for every additional area/route.
-    if not hass.services.has_service(DOMAIN, SERVICE_REFRESH):
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_REFRESH,
-            _async_handle_refresh,
-            schema=_REFRESH_SCHEMA,
-            supports_response=SupportsResponse.OPTIONAL,
-        )
-
     return True
 
 
@@ -87,10 +103,20 @@ async def _async_handle_refresh(call: ServiceCall) -> ServiceResponse:
     if entry is None or entry.domain != DOMAIN:
         raise ServiceValidationError(f"'{entry_id}' is not a Lufop Radar config entry")
 
-    runtime_data: RuntimeData = hass.data[DOMAIN][entry.entry_id]
-    await runtime_data.coordinator.async_refresh()
+    runtime_data: RuntimeData | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime_data is None:
+        # Disabled, waiting for Lufop, or waiting for a new key.
+        raise ServiceValidationError(f"'{entry.title}' is not loaded")
+    coordinator = runtime_data.coordinator
+    await coordinator.async_refresh()
+    if not coordinator.last_update_success:
+        # The coordinator keeps its last list through a failed fetch, and
+        # that list used to be handed back as if it were the answer.
+        raise HomeAssistantError(
+            f"'{entry.title}' could not be refreshed: {coordinator.last_exception}"
+        )
 
-    radars = runtime_data.coordinator.data.radars if runtime_data.coordinator.data else []
+    radars = coordinator.data.radars if coordinator.data else []
     return {
         "radars": [
             {

@@ -60,6 +60,25 @@ def _sign_picture(content: str, font_size: int = 40) -> str:
     return "data:image/svg+xml," + quote(svg)
 
 
+def _forget_deleted(registry, entry) -> None:
+    """Drop the record Home Assistant keeps of a removed entity.
+
+    The registry remembers every removed entity for as long as its config
+    entry exists, so that the same thing gets its old id back when it
+    returns. A radar that is gone from Lufop's data rarely returns, and the
+    list of those records only ever grew. Not a public call, hence the care -
+    where a version does not have it, the record simply stays.
+    """
+    try:
+        deleted = getattr(registry, "deleted_entities", None)
+        key = (entry.domain, entry.platform, entry.unique_id)
+        if deleted is not None and key in deleted:
+            del deleted[key]
+            registry.async_schedule_save()
+    except Exception:  # noqa: BLE001 - housekeeping must never fail a sync
+        _LOGGER.debug("Could not drop the deleted-entity record", exc_info=True)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -75,16 +94,27 @@ async def async_setup_entry(
     # ones stayed behind as orphans. The entry id never changes.
     unique_prefix = f"{DOMAIN}-{config_entry.entry_id}-"
     known_entities: dict[str, LufopLocationEvent] = {}
-    # Set False after the first sync below - every radar reported there is
-    # simply "already there" from the entry's very first data fetch, not a
-    # new detection, so EVENT_NEW_RADAR only starts firing from the next
-    # poll onwards.
+    # Set False after the first sync of data that was really fetched - every
+    # radar reported there is simply "already there", not a new detection, so
+    # EVENT_NEW_RADAR only starts firing from the fetch after it. An entry
+    # that fetches on demand starts with an empty list nobody asked Lufop
+    # for; that one used to count as the first sync, and the first refresh
+    # after every restart then announced every radar as new.
     first_sync = True
+    # Every radar in range at the last fetch, shown or not. One that only
+    # moves up into the list because another left it is not new.
+    in_range_before: frozenset[str] = frozenset()
 
     @callback
     def _sync_entities() -> None:
         """Add newly reported radars and remove ones no longer in range."""
-        nonlocal first_sync
+        nonlocal first_sync, in_range_before
+        if not coordinator.fetched:
+            # Nothing has been asked yet, so there is nothing to compare
+            # with: the markers of the last run stay in the registry, with
+            # their ids and whatever was set on them, until a fetch says
+            # which of them still stand.
+            return
         if not coordinator.last_update_success:
             # A failed poll leaves the previous data in place, so there is
             # nothing here to add or remove and nothing that could be new.
@@ -92,7 +122,7 @@ async def async_setup_entry(
             # is a CoordinatorEntity - rather than standing on the map with
             # a position nobody has confirmed since the outage began.
             return
-        radars = coordinator.data.radars[: coordinator.sensorcount]
+        radars = coordinator.data.radars
         current_ids = {str(radar["ID"]) for radar in radars}
         new_entities = []
         new_radars = []
@@ -124,12 +154,15 @@ async def async_setup_entry(
             ):
                 known_entities.pop(entry.unique_id[len(unique_prefix):], None)
                 registry.async_remove(entry.entity_id)
+                _forget_deleted(registry, entry)
 
         if new_entities:
             async_add_entities(new_entities)
 
         if not first_sync:
             for radar in new_radars:
+                if str(radar["ID"]) in in_range_before:
+                    continue
                 hass.bus.async_fire(
                     EVENT_NEW_RADAR,
                     {
@@ -146,8 +179,9 @@ async def async_setup_entry(
                     },
                 )
         first_sync = False
+        in_range_before = coordinator.data.in_range
 
-    coordinator.async_add_listener(_sync_entities)
+    config_entry.async_on_unload(coordinator.async_add_listener(_sync_entities))
     _sync_entities()
 
 
@@ -171,7 +205,10 @@ class LufopLocationEvent(CoordinatorEntity[LufopCoordinator], GeolocationEvent):
         self._attr_unique_id = (
             f"{DOMAIN}-{coordinator.config_entry.entry_id}-{radar_id}"
         )
-        self._attr_unit_of_measurement = UnitOfLength.KILOMETERS
+        # The instance's own unit, which is what the distance is turned into
+        # below. It said km on an instance that measures in miles too, beside
+        # a figure in miles.
+        self._attr_unit_of_measurement = coordinator.hass.config.units.length_unit
         self._extra_attrs: dict[str, Any] = {}
         self._apply(radar)
 
@@ -251,12 +288,6 @@ class LufopLocationEvent(CoordinatorEntity[LufopCoordinator], GeolocationEvent):
                     self._apply(radar)
                     break
         self.async_write_ha_state()
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Purge the registry entry so gone radars don't linger as orphans."""
-        registry = er.async_get(self.hass)
-        if self.entity_id in registry.entities:
-            registry.async_remove(self.entity_id)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

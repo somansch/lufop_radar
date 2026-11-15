@@ -2,6 +2,34 @@
 
 All notable changes to this integration are documented here.
 
+## v2.2.3
+
+A release of fixes only, from a review of the whole integration. Lufop Radar gets no new features; its successor is [TomTom](https://github.com/somansch/tomtom).
+
+### After updating
+- **Home Assistant 2024.10 is the minimum now.** The README's examples have been written in the syntax of 2024.10 for a while; the stated minimum was still 2024.7.
+- **An area or route may show fewer radars, and other ones.** What lies outside the circle or the corridor is left out now, and with more radars in range than the maximum, the nearest are kept - see below.
+- **On an instance that measures in miles, a radar's distance says `mi`.** The figure was miles already, the unit beside it said km.
+- **A refresh that fails says so.** `lufop_radar.refresh` raises an error when the fetch failed or the entry is not loaded, rather than answering with the list from before - a script that goes on after it needs `continue_on_error` to keep doing so.
+
+### Fixed
+- **No more "new" radars after every restart.** An entry that only fetches on demand (update interval 0) starts with an empty list, and that list counted as its first fetch - so the first `lufop_radar.refresh` after every restart or reload fired `lufop_radar_new_radar` for every radar it found, and the empty start had already deleted the entry's markers. The first real fetch is the one that counts now, the markers stay until it says which of them still stand, and a radar that only moves up into the list because another one left it is not new either.
+- **Only what lies in the circle or the corridor.** Lufop's search margin is not a circle of that radius: asked for 3 km, it answered with a radar 3.8 km away. The integration measures for itself now - to the area's center, or to the line between a route's waypoints.
+- **The maximum keeps the nearest radars.** Lufop's answer comes in no order of distance, and the list was cut where the maximum fell: with more radars in range, the ones shown were whichever came first. An area keeps the ones nearest its center now, a route the first ones along the way. The count sensor's attributes and the answer of `lufop_radar.refresh` are that same list; they used to cover every radar, shown or not.
+- **Markers survive a reload.** Every reload - saving the settings is one - took all markers out of the entity registry and registered them anew, and whatever had been set on an entity was gone. The registry no longer keeps a record of every radar that ever left, either.
+- **A Lufop that does not answer is an outage, not an error.** A request had no time limit of its own, and neither a timeout nor an answer that is not JSON was caught: at start the entry then failed for good instead of trying again, and the setup form said "Unknown error". A request gives up after 30 seconds now, and both read as *could not reach Lufop*.
+- **`lufop_radar.refresh` exists from the start**, not only once an entry has set up, and names the entry that is not loaded instead of failing with a `KeyError`.
+- **Saving the settings reloads the entry once**, not twice, and no longer keeps a second copy of them - the API key included. A copy left by an earlier save is removed at the next start.
+- **The maximum number of radars is at least 1.** The field took 0 and negative numbers; -1 cut the last radar off the list while the sensor showed -1.
+- **Editing a route's waypoints no longer adds the last one again.** Keeping the route as it is - unchecking **Add another waypoint** without moving the map - appended the last waypoint a second time with every edit, and one more request to every poll.
+- **A narrow corridor asks half as often.** Lufop's smallest search is 100 m, and a route is sampled in those steps now: a 50 m corridor used to ask every 50 m for the ground a request every 100 m covers.
+- **One broken record no longer stops the rest.** A radar without an ID or a position kept all markers of its entry from being brought up to date.
+
+### Changed
+- **The API key is masked** where it is typed and where a saved one is shown again.
+- **The countries are sorted in your language**, not in the one the server is set to.
+- README: the examples say *New radar* and all use the same syntax - the zone example also named its trigger wrongly, `geolocation` for `geo_location`; the daily quota is worked out for what the defaults really ask (one entry fits, two do not); the display name is set once and cannot be changed later, which the README had claimed.
+
 ## v2.2.2
 
 **Lufop Radar is no longer developed.** Its successor is [TomTom](https://github.com/somansch/tomtom), with Lufop's speed cameras built in and TomTom's own jams, closures, roadworks, accidents and road weather in more than 70 countries, blitzer.de's cameras, a route planner on the card and 30 languages. Your Lufop key works there too. Lufop Radar keeps working as it is, but gets no new features.

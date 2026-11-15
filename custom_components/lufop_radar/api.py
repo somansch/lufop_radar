@@ -2,7 +2,7 @@ import asyncio
 import logging
 from math import ceil
 
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientTimeout
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -16,6 +16,10 @@ FREE_PLAN_MAX_RESULTS = 200
 # per sample point, and several config entries can also poll around the same
 # time - both would burst past the per-minute cap without a shared throttle.
 _MIN_SECONDS_BETWEEN_REQUESTS = 6.5
+# One request, start to finish. Without a limit of its own, a Lufop that
+# takes the connection and then says nothing held a poll - and the key check
+# at start - for the session's own five minutes.
+_REQUEST_TIMEOUT = ClientTimeout(total=30)
 _rate_limit_lock = asyncio.Lock()
 _last_request_time = 0.0
 
@@ -122,7 +126,9 @@ class LufopAPI:
         await self._throttle()
         params = {"key": self._api_key, "format": "meta"}
         try:
-            async with self._session.get(BASE_URL, params=params) as response:
+            async with self._session.get(
+                BASE_URL, params=params, timeout=_REQUEST_TIMEOUT
+            ) as response:
                 if response.status in (401, 403):
                     raise LufopAuthError(await _error_detail(response))
                 if response.status >= 400:
@@ -131,8 +137,15 @@ class LufopAPI:
                         f"check: {await _error_detail(response)}"
                     )
                 data = await response.json(content_type=None)
+        except TimeoutError as err:
+            raise LufopAPIError("Lufop API did not answer in time") from err
         except ClientError as err:
             raise LufopAPIError(f"Failed to reach Lufop API: {err}") from err
+        except ValueError as err:
+            # A 200 that is not JSON: a maintenance page, a proxy's error.
+            raise LufopAPIError(
+                "Lufop API answered with something that is not JSON"
+            ) from err
 
         if not isinstance(data, dict):
             raise LufopAPIError("Lufop API returned no information about the key")
@@ -164,7 +177,9 @@ class LufopAPI:
             "m": str(max(1, ceil(radius_km * 10))),
         }
         try:
-            async with self._session.get(BASE_URL, params=params) as response:
+            async with self._session.get(
+                BASE_URL, params=params, timeout=_REQUEST_TIMEOUT
+            ) as response:
                 if response.status >= 400:
                     message = (
                         f"Lufop API returned HTTP {response.status}: "
@@ -180,8 +195,15 @@ class LufopAPI:
                         raise LufopAuthError(message)
                     raise LufopAPIError(message)
                 data = await response.json(content_type=None)
+        except TimeoutError as err:
+            raise LufopAPIError("Lufop API did not answer in time") from err
         except ClientError as err:
             raise LufopAPIError(f"Failed to reach Lufop API: {err}") from err
+        except ValueError as err:
+            # A 200 that is not JSON: a maintenance page, a proxy's error.
+            raise LufopAPIError(
+                "Lufop API answered with something that is not JSON"
+            ) from err
 
         if data is None:
             # "Nothing in range" comes back as a bare null, not as an
